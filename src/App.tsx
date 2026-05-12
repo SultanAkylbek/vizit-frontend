@@ -142,23 +142,33 @@ function saveSession(u) {
 const DEMO_PLACES = []; // empty — real data comes from API
 
 async function apiSearch(query, lang, sessionId) {
-  // Replace with: fetch(`${API}/api/v1/search`, {method:'POST',...})
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method:"POST", headers:{"Content-Type":"application/json"},
-    body: JSON.stringify({
-      model:"claude-sonnet-4-20250514", max_tokens:500,
-      system: {
-        ru:`Ты — AI-консьерж VIZIT AI по Астане. База заведений пуста — скажи об этом честно на русском. JSON: {"no_match":true,"rec":"текст"}`,
-        kz:`Сен — VIZIT AI кеңесшісісің. База бос — казахша айт. JSON: {"no_match":true,"rec":"мәтін"}`,
-        en:`You are VIZIT AI concierge for Astana. Database is empty — say so honestly. JSON: {"no_match":true,"rec":"text"}`,
-      }[lang] || "",
-      messages:[{role:"user",content:`Query: «${query}»`}]
-    })
-  });
-  const d = await res.json();
-  const txt = d.content?.map(b=>b.text||"").join("")||"";
-  try { return JSON.parse(txt.replace(/```json|```/g,"").trim()); }
-  catch { return {no_match:true, rec:{ru:"Ошибка поиска.",kz:"Қате.",en:"Search error."}[lang]||""}; }
+  const API_BASE = "https://vizit-backend-vdt2.onrender.com"; 
+
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/search`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query: query,
+        lang: lang,
+        session_id: sessionId || null
+      })
+    });
+
+    const data = await res.json();
+    
+    return { 
+      no_match: !data.matched, 
+      rec: data.rec, 
+      place: data.place || null 
+    };
+  } catch (error) {
+    console.error("Ошибка:", error);
+    return { 
+      no_match: true, 
+      rec: lang === "ru" ? "Ошибка сервера" : "Server error" 
+    };
+  }
 }
 
 // ── STYLES ───────────────────────────────────────────────────
