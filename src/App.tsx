@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 
 // ── i18n ────────────────────────────────────────────────────
 const I18N = {
@@ -137,37 +137,20 @@ function saveSession(u) {
   else localStorage.removeItem(LS_KEY);
 }
 
-// ── SIMULATED BACKEND (demo — replace with real API calls) ───
-// In production: fetch("https://api.vizitai.kz/api/v1/search", ...)
-const DEMO_PLACES = []; // empty — real data comes from API
-
+// ── API ──────────────────────────────────────────────────────
 async function apiSearch(query, lang, sessionId) {
   const API_BASE = "https://vizit-backend-vdt2.onrender.com"; 
-
   try {
     const res = await fetch(`${API_BASE}/api/v1/search`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        query: query,
-        lang: lang,
-        session_id: sessionId || null
-      })
+      body: JSON.stringify({ query, lang, session_id: sessionId || null })
     });
-
     const data = await res.json();
-    
-    return { 
-      no_match: !data.matched, 
-      rec: data.rec, 
-      place: data.place || null 
-    };
+    return { no_match: !data.matched, rec: data.rec, place: data.place || null };
   } catch (error) {
     console.error("Ошибка:", error);
-    return { 
-      no_match: true, 
-      rec: lang === "ru" ? "Ошибка сервера" : "Server error" 
-    };
+    return { no_match: true, rec: lang === "ru" ? "Ошибка сервера" : "Server error" };
   }
 }
 
@@ -183,6 +166,7 @@ const tierC = t => t==="premium"?T.amber:t==="basic"?T.blue:T.hint;
 const loadC  = l => ({free:T.green,moderate:T.amber,busy:T.red}[l]||T.hint);
 const loadL  = (l,t) => ({free:t.search,moderate:"~",busy:"!"}[l]||"");
 
+// ── UI COMPONENTS ────────────────────────────────────────────
 function Tag({label}){ return <span style={{background:T.card,border:`0.5px solid ${T.border}`,borderRadius:20,padding:"2px 8px",fontSize:11,color:T.muted,marginRight:3,marginBottom:3,display:"inline-block"}}>{label}</span>; }
 function Badge({c,label}){ return <span style={{background:c+"22",color:c,border:`0.5px solid ${c}44`,borderRadius:6,padding:"2px 7px",fontSize:11,fontWeight:500}}>{label}</span>; }
 function Btn({children,onClick,color,outline,disabled,full,small,style:st={}}){
@@ -205,71 +189,40 @@ function Field({label,value,onChange,placeholder,type="text",multiline,style:st=
   );
 }
 
-// ── CHECK-IN MODAL ───────────────────────────────────────────
+// ── MODAL ───────────────────────────────────────────────────
 function CheckInModal({place, t, onClose}){
   const [st, setSt] = useState("idle");
   const [res, setRes] = useState(null);
-
   const detect = useCallback(()=>{
     if(!place.lat || !place.lng){ setSt("nocoords"); return; }
     setSt("detecting");
-    if(!navigator.geolocation){ setTimeout(()=>{ setRes({dist:Math.floor(Math.random()*90+5), code:Math.random().toString(36).slice(2,6).toUpperCase()}); setSt("success"); },1500); return; }
     navigator.geolocation.getCurrentPosition(
       pos=>{
         const R=6371000, f1=pos.coords.latitude*Math.PI/180, f2=place.lat*Math.PI/180;
         const df=(place.lat-pos.coords.latitude)*Math.PI/180, dl=(place.lng-pos.coords.longitude)*Math.PI/180;
         const a=Math.sin(df/2)**2+Math.cos(f1)*Math.cos(f2)*Math.sin(dl/2)**2;
         const dist=Math.round(R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a)));
-        const code=Math.random().toString(36).slice(2,6).toUpperCase();
-        setRes({dist,code});
+        setRes({dist, code:Math.random().toString(36).slice(2,6).toUpperCase()});
         setSt(dist<=100?"success":"fail");
       },
-      ()=>{ setRes({dist:Math.floor(Math.random()*90+5),code:Math.random().toString(36).slice(2,6).toUpperCase()}); setSt("success"); },
+      ()=>{ setRes({dist:50, code:"DEMO"}); setSt("success"); },
       {timeout:8000}
     );
   },[place]);
-
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300,padding:20}}>
-      <div style={{background:T.surface,border:`0.5px solid ${T.border2}`,borderRadius:"var(--border-radius-lg)",maxWidth:340,width:"100%",padding:24,textAlign:"center"}}>
+      <div style={{background:T.surface,borderRadius:"var(--border-radius-lg)",maxWidth:340,width:"100%",padding:24,textAlign:"center"}}>
         <div style={{fontSize:36,marginBottom:8}}>{place.emoji||"📍"}</div>
-        <div style={{fontWeight:500,fontSize:17,color:T.text,marginBottom:4}}>{t.checkinTitle}</div>
+        <div style={{fontWeight:500,fontSize:17}}>{t.checkinTitle}</div>
         <div style={{fontSize:13,color:T.hint,marginBottom:16}}>{place.name}</div>
-
-        {st==="idle"&&<>
-          <div style={{background:T.card,border:`0.5px solid ${T.border}`,borderRadius:"var(--border-radius-md)",padding:12,marginBottom:14,fontSize:13,color:T.muted,lineHeight:1.6}}>{t.checkinInfo}</div>
-          {place.offers?.[0]&&<div style={{background:T.amber+"12",border:`0.5px solid ${T.amber}33`,borderRadius:"var(--border-radius-md)",padding:"9px 12px",marginBottom:14,fontSize:12,color:T.amber}}>🎁 {place.offers[0].bonus_text}</div>}
-          <Btn onClick={detect} full style={{marginBottom:8}}>{t.checkinBtn}</Btn>
-          <Btn onClick={onClose} outline color={T.muted} full>{t.cancel}</Btn>
-        </>}
-
-        {st==="detecting"&&<div style={{padding:"20px 0",color:T.muted,fontSize:13}}><div style={{fontSize:28,marginBottom:10}}>📡</div>{t.detecting}</div>}
-
-        {st==="nocoords"&&<>
-          <div style={{color:T.red,fontSize:13,marginBottom:16}}>{t.noCoords}</div>
-          <Btn onClick={onClose} full>{t.close}</Btn>
-        </>}
-
+        {st==="idle"&&<><Btn onClick={detect} full>{t.checkinBtn}</Btn><Btn onClick={onClose} outline full style={{marginTop:8}}>{t.cancel}</Btn></>}
+        {st==="detecting"&&<div style={{padding:20}}>{t.detecting}</div>}
         {st==="success"&&<>
-          <div style={{fontSize:44,marginBottom:8}}>✅</div>
-          <div style={{fontSize:16,fontWeight:500,color:T.green,marginBottom:4}}>{t.checkinSuccess}</div>
-          <div style={{fontSize:11,color:T.hint,marginBottom:14}}>{res?.dist}м</div>
-          <div style={{background:T.card,border:`1px solid ${T.border2}`,borderRadius:"var(--border-radius-lg)",padding:"14px",marginBottom:14}}>
-            <div style={{fontSize:11,color:T.hint,letterSpacing:2,marginBottom:6}}>{t.checkinCode}</div>
-            <div style={{fontSize:30,fontWeight:700,color:T.blue,letterSpacing:6}}>{res?.code}</div>
-            <div style={{fontSize:12,color:T.muted,marginTop:6}}>{t.checkinShow}</div>
-          </div>
-          {place.offers?.[0]&&<div style={{background:T.amber+"12",border:`0.5px solid ${T.amber}33`,borderRadius:"var(--border-radius-md)",padding:"9px",marginBottom:14,fontSize:12,color:T.amber}}>🎁 {place.offers[0].bonus_text}</div>}
-          <Btn onClick={onClose} full>{t.done}</Btn>
+          <div style={{fontSize:16,color:T.green,marginBottom:10}}>{t.checkinSuccess}</div>
+          <div style={{background:T.card,padding:14,borderRadius:8,fontSize:24,fontWeight:700}}>{res?.code}</div>
+          <Btn onClick={onClose} full style={{marginTop:14}}>{t.done}</Btn>
         </>}
-
-        {st==="fail"&&<>
-          <div style={{fontSize:36,marginBottom:8}}>📍</div>
-          <div style={{fontSize:15,fontWeight:500,color:T.red,marginBottom:6}}>{t.checkinFail}</div>
-          <div style={{fontSize:13,color:T.muted,marginBottom:16}}>{res?.dist}{t.tooFar}</div>
-          <Btn onClick={()=>setSt("idle")} full style={{marginBottom:8}}>{t.retry}</Btn>
-          <Btn onClick={onClose} outline color={T.muted} full>{t.close}</Btn>
-        </>}
+        {st==="fail"&&<><div style={{color:T.red,marginBottom:10}}>{t.checkinFail}</div><Btn onClick={onClose} full>{t.close}</Btn></>}
       </div>
     </div>
   );
@@ -279,402 +232,128 @@ function CheckInModal({place, t, onClose}){
 function PlaceCard({place, t, onCheckin}){
   return (
     <div style={{background:T.surface,border:`0.5px solid ${T.border2}`,borderRadius:"var(--border-radius-lg)",padding:14,marginTop:10}}>
-      <div style={{display:"flex",alignItems:"flex-start",gap:10,marginBottom:8}}>
+      <div style={{display:"flex",gap:10,marginBottom:8}}>
         <span style={{fontSize:20}}>{place.emoji||"📍"}</span>
         <div style={{flex:1}}>
-          <div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap",marginBottom:2}}>
-            <span style={{fontWeight:500,fontSize:14,color:T.text}}>{place.name}</span>
-            {place.is_verified&&<Badge c={T.green} label="✓"/>}
+          <div style={{display:"flex",alignItems:"center",gap:5}}>
+            <span style={{fontWeight:500,fontSize:14}}>{place.name}</span>
             <Badge c={tierC(place.tier)} label={place.tier}/>
           </div>
           <div style={{fontSize:11,color:T.hint}}>{place.category} · {place.district}</div>
         </div>
       </div>
-      <div style={{fontSize:12,color:T.hint,marginBottom:6}}>📍 {place.address}</div>
-      {place.current_load&&<div style={{display:"flex",alignItems:"center",gap:5,marginBottom:6,fontSize:12}}>
-        <span style={{width:6,height:6,borderRadius:"50%",background:loadC(place.current_load),display:"inline-block"}}/>
-        <span style={{color:loadC(place.current_load),fontWeight:500}}>{loadL(place.current_load,t)}</span>
-        {place.avg_check_kzt&&<span style={{color:T.hint}}>· {place.avg_check_kzt.toLocaleString()} ₸</span>}
-      </div>}
-      {place.offers?.[0]&&<div style={{background:T.amber+"12",border:`0.5px solid ${T.amber}33`,borderRadius:"var(--border-radius-md)",padding:"7px 10px",marginBottom:10,fontSize:12,color:T.amber}}>🎁 {place.offers[0].title} — {place.offers[0].value||""}</div>}
-      {(place.tags||[]).length>0&&<div style={{marginBottom:10}}>{place.tags.slice(0,4).map(tg=><Tag key={tg} label={tg}/>)}</div>}
+      <div style={{fontSize:12,color:T.hint,marginBottom:10}}>📍 {place.address}</div>
       <div style={{display:"flex",gap:8}}>
-        {place.two_gis_url&&<a href={place.two_gis_url} target="_blank" rel="noreferrer" style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",background:T.blue,color:"#fff",padding:"9px",borderRadius:"var(--border-radius-md)",textDecoration:"none",fontSize:13,fontWeight:500}}>{t.route}</a>}
-        <button onClick={()=>onCheckin(place)} style={{flex:1,background:"none",color:T.green,border:`0.5px solid ${T.green}`,borderRadius:"var(--border-radius-md)",fontSize:13,fontWeight:500,cursor:"pointer",padding:"9px"}}>{t.iAmHere}</button>
+        {place.two_gis_url&&<a href={place.two_gis_url} target="_blank" rel="noreferrer" style={{flex:1,textAlign:"center",background:T.blue,color:"#fff",padding:9,borderRadius:8,textDecoration:"none",fontSize:13}}>{t.route}</a>}
+        <button onClick={()=>onCheckin(place)} style={{flex:1,background:"none",color:T.green,border:`1px solid ${T.green}`,borderRadius:8,fontSize:13}}>{t.iAmHere}</button>
       </div>
     </div>
   );
 }
 
-// ── AUTH PAGE ────────────────────────────────────────────────
-function AuthPage({onAuth,onGuest,lang,t}){
+// ── PAGES ────────────────────────────────────────────────────
+function AuthPage({onAuth,onGuest,t}){
   const [mode,setMode]=useState("login");
-  const [role,setRole]=useState("USER");
   const [email,setEmail]=useState("");
   const [pass,setPass]=useState("");
-  const [name,setName]=useState("");
-  const [err,setErr]=useState("");
-  const [loading,setLoading]=useState(false);
-
-  const submit=async()=>{
-    setErr(""); setLoading(true);
-    await new Promise(r=>setTimeout(r,600));
-    const u={id:"u_"+Date.now(),role,name:name||email.split("@")[0],email};
-    saveSession(u); onAuth(u);
-    setLoading(false);
-  };
-
+  const submit=()=>{ onAuth({id:"u1", role:"USER", email}); };
   return (
-    <div style={{minHeight:"100vh",background:T.bg,display:"flex",alignItems:"center",justifyContent:"center",padding:20,fontFamily:"var(--font-sans)"}}>
-      <div style={{background:T.surface,border:`0.5px solid ${T.border2}`,borderRadius:"var(--border-radius-lg)",width:"100%",maxWidth:380,padding:28}}>
-        <div style={{textAlign:"center",marginBottom:24}}>
-          <div style={{width:44,height:44,borderRadius:"var(--border-radius-md)",background:T.blue,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:20,color:"#fff",margin:"0 auto 10px"}}>V</div>
-          <div style={{fontWeight:600,fontSize:20,color:T.text}}>VIZIT AI</div>
-          <div style={{fontSize:12,color:T.hint,marginTop:2}}>{t.appSub}</div>
-        </div>
-
-        <div style={{display:"flex",gap:0,marginBottom:20,background:T.card,borderRadius:"var(--border-radius-md)",padding:3}}>
-          {[["login",t.login],["register",t.register]].map(([m,l])=>(
-            <button key={m} onClick={()=>setMode(m)} style={{flex:1,padding:"8px",background:mode===m?T.surface:"transparent",border:mode===m?`0.5px solid ${T.border2}`:"none",borderRadius:"calc(var(--border-radius-md) - 2px)",color:mode===m?T.text:T.muted,fontSize:13,fontWeight:mode===m?500:400,cursor:"pointer"}}>{l}</button>
-          ))}
-        </div>
-
-        {mode==="register"&&(
-          <div style={{display:"flex",gap:8,marginBottom:14}}>
-            {[["USER",t.iAmUser],["VENDOR",t.iAmVendor]].map(([r,l])=>(
-              <button key={r} onClick={()=>setRole(r)} style={{flex:1,padding:"10px 6px",background:role===r?T.blue+"15":T.card,border:`0.5px solid ${role===r?T.blue:T.border}`,borderRadius:"var(--border-radius-md)",color:role===r?T.blue:T.muted,fontSize:12,fontWeight:role===r?500:400,cursor:"pointer"}}>{l}</button>
-            ))}
-          </div>
-        )}
-
-        <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:16}}>
-          {mode==="register"&&<Field value={name} onChange={e=>setName(e.target.value)} placeholder={t.name}/>}
-          <Field value={email} onChange={e=>setEmail(e.target.value)} placeholder={t.email} type="email"/>
-          <Field value={pass} onChange={e=>setPass(e.target.value)} placeholder={t.password} type="password"/>
-        </div>
-        {err&&<div style={{color:T.red,fontSize:12,marginBottom:10,textAlign:"center"}}>{err}</div>}
-        <div style={{fontSize:11,color:T.hint,marginBottom:12,textAlign:"center"}}>{t.demoHint}</div>
-        <Btn onClick={submit} disabled={loading||!email||!pass} full style={{marginBottom:10,padding:"11px"}}>{loading?"...":mode==="login"?t.login:t.register}</Btn>
-        <button onClick={onGuest} style={{width:"100%",background:"none",border:`0.5px solid ${T.border}`,borderRadius:"var(--border-radius-md)",padding:"10px",color:T.muted,fontSize:13,cursor:"pointer"}}>{t.guest}</button>
+    <div style={{minHeight:"100vh",background:T.bg,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div style={{background:T.surface,borderRadius:16,width:"100%",maxWidth:380,padding:28,border:`1px solid ${T.border2}`}}>
+        <div style={{textAlign:"center",marginBottom:24}}><div style={{background:T.blue,width:40,height:40,borderRadius:8,margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:700}}>V</div></div>
+        <Field value={email} onChange={e=>setEmail(e.target.value)} placeholder={t.email}/>
+        <Field value={pass} onChange={e=>setPass(e.target.value)} placeholder={t.password} type="password"/>
+        <Btn onClick={submit} full>{mode==="login"?t.login:t.register}</Btn>
+        <button onClick={onGuest} style={{width:"100%",background:"none",border:"none",marginTop:14,color:T.muted,cursor:"pointer"}}>{t.guest}</button>
       </div>
     </div>
   );
 }
 
-// ── CHAT PAGE ────────────────────────────────────────────────
-function ChatPage({user,lang,t,onCheckin}){
+function ChatPage({lang,t,onCheckin}){
   const [msgs,setMsgs]=useState([{role:"ai",text:t.chatGreet}]);
   const [input,setInput]=useState("");
   const [loading,setLoading]=useState(false);
   const ref=useRef(null);
-  useEffect(()=>{ref.current?.scrollIntoView({behavior:"smooth"});},[msgs,loading]);
+  useEffect(()=>{ref.current?.scrollIntoView({behavior:"smooth"});},[msgs]);
 
   const send=async(q)=>{
-    const query=(q||input).trim(); if(!query||loading) return;
+    const query=(q||input).trim(); if(!query) return;
     setInput(""); setLoading(true);
     setMsgs(m=>[...m,{role:"user",text:query}]);
-    const r=await apiSearch(query,lang,null);
-    if(r.no_match||!r.place){
-      setMsgs(m=>[...m,{role:"ai",text:r.rec||t.noPlaces}]);
-    } else {
-      setMsgs(m=>[...m,{role:"ai",text:r.rec,place:r.place}]);
-    }
+    const r=await apiSearch(query,lang);
+    setMsgs(m=>[...m,{role:"ai",text:r.rec,place:r.place}]);
     setLoading(false);
   };
-
   return (
-    <div style={{display:"flex",flexDirection:"column",height:"100%",background:T.bg}}>
-      <div style={{flex:1,overflowY:"auto",padding:"14px 12px",display:"flex",flexDirection:"column",gap:10}}>
+    <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
+      <div style={{flex:1,overflowY:"auto",padding:14,display:"flex",flexDirection:"column",gap:10}}>
         {msgs.map((m,i)=>(
-          <div key={i} style={{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start"}}>
-            <div style={{maxWidth:"88%",background:m.role==="user"?T.blue:T.surface,color:m.role==="user"?"#fff":T.text,border:m.role==="ai"?`0.5px solid ${T.border2}`:"none",borderRadius:m.role==="user"?"16px 16px 4px 16px":"16px 16px 16px 4px",padding:"10px 13px",fontSize:14,lineHeight:1.6,whiteSpace:"pre-wrap"}}>
-              {m.text}
-              {m.place&&<PlaceCard place={m.place} t={t} onCheckin={onCheckin}/>}
-            </div>
+          <div key={i} style={{alignSelf:m.role==="user"?"flex-end":"flex-start",maxWidth:"85%",background:m.role==="user"?T.blue:T.surface,color:m.role==="user"?"#fff":T.text,padding:12,borderRadius:12,border:m.role==="ai"?`1px solid ${T.border2}`:"none"}}>
+            {m.text}{m.place&&<PlaceCard place={m.place} t={t} onCheckin={onCheckin}/>}
           </div>
         ))}
-        {loading&&<div style={{display:"flex",justifyContent:"flex-start"}}><div style={{background:T.surface,border:`0.5px solid ${T.border}`,borderRadius:"16px 16px 16px 4px",padding:"11px 16px",display:"flex",gap:5}}>{[0,1,2].map(i=><span key={i} style={{width:6,height:6,borderRadius:"50%",background:T.blue,display:"inline-block",animation:"pulse 1.2s ease-in-out infinite",animationDelay:`${i*.2}s`}}/>)}</div></div>}
         <div ref={ref}/>
       </div>
-      {msgs.length<=1&&<div style={{padding:"0 12px 8px",display:"flex",flexWrap:"wrap",gap:6}}>{t.hints.map(h=><button key={h} onClick={()=>send(h)} style={{background:T.surface,border:`0.5px solid ${T.border2}`,color:T.blue,borderRadius:20,padding:"6px 12px",fontSize:12,cursor:"pointer"}}>{h}</button>)}</div>}
-      <div style={{padding:"8px 12px 12px",borderTop:`0.5px solid ${T.border}`,background:T.surface,display:"flex",gap:8}}>
-        <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&send()} placeholder={t.chatPlaceholder} style={{flex:1,borderRadius:"var(--border-radius-md)",padding:"10px 13px",fontSize:14}}/>
-        <button onClick={()=>send()} disabled={loading} style={{background:loading?T.card:T.blue,color:loading?T.muted:"#fff",border:`0.5px solid ${loading?T.border:T.blue}`,borderRadius:"var(--border-radius-md)",padding:"10px 16px",fontSize:17,cursor:loading?"default":"pointer"}}>→</button>
+      <div style={{padding:12,borderTop:`1px solid ${T.border}`,background:T.surface,display:"flex",gap:8}}>
+        <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&send()} style={{flex:1,padding:10,borderRadius:8,border:`1px solid ${T.border2}`}} placeholder={t.chatPlaceholder}/>
+        <button onClick={()=>send()} style={{background:T.blue,color:"#fff",padding:"10px 16px",borderRadius:8,border:"none"}}>→</button>
       </div>
-      <style>{`@keyframes pulse{0%,100%{opacity:.3;transform:scale(.8)}50%{opacity:1;transform:scale(1.2)}}`}</style>
     </div>
   );
 }
 
-// ── VENDOR DASHBOARD ─────────────────────────────────────────
 function VendorDashboard({user,t}){
   const [activeTab,setActiveTab]=useState("analytics");
-  const [analytics,setAnalytics]=useState(null);
-  const [place,setPlace]=useState(null);
-  const [desc,setDesc]=useState("");
-  const [tags,setTags]=useState("");
-  const [offerTitle,setOfferTitle]=useState("");
-  const [bonusText,setBonusText]=useState("");
-  const [discPct,setDiscPct]=useState("0");
-  const [saveState,setSaveState]=useState("idle");
-  const [offerState,setOfferState]=useState("idle");
   const [addState,setAddState]=useState("idle");
-  const [newPlace,setNewPlace]=useState({name:"",category:"cafe",address:"",district:"Есіл",ambient_description:"",lat:"",lng:"",two_gis_url:"",avg_check_kzt:"",has_wifi:false,has_outlets:false,tags:""});
-
-  // Load vendor analytics (simulated empty state for demo)
-  useEffect(()=>{
-    setAnalytics({ai_recommendations:0,confirmed_visits:0,gis_clicks:0,conversion_pct:0,top_queries:[],data_note:t.noData});
-    setPlace(null);
-  },[]);
-
-  const handleSave=()=>{ setSaveState("saving"); setTimeout(()=>setSaveState("idle"),2000); };
-  const handleOffer=()=>{ setOfferState("saved"); setTimeout(()=>setOfferState("idle"),2000); };
-  const handleAdd=async()=>{
-    setAddState("submitting");
-    await new Promise(r=>setTimeout(r,1000));
-    setAddState("added");
-    setTimeout(()=>setAddState("idle"),2500);
-  };
-
-  const tabs=[["analytics",t.analytics],["editor",t.editor],["offers",t.offers],["add",t.addPlace]];
-
+  const [newPlace,setNewPlace]=useState({name:"",address:"",lat:"",lng:""});
+  const handleAdd=()=>{ setAddState("submitting"); setTimeout(()=>setAddState("added"),1000); };
+  
   return (
-    <div style={{minHeight:"100%",background:T.bg,padding:16,paddingBottom:20,fontFamily:"var(--font-sans)"}}>
-      <div style={{fontSize:16,fontWeight:500,color:T.text,marginBottom:14}}>{t.vendorTitle}</div>
-
-      <div style={{display:"flex",gap:4,marginBottom:16,overflowX:"auto",paddingBottom:4}}>
-        {tabs.map(([id,l])=>(
-          <button key={id} onClick={()=>setActiveTab(id)} style={{flexShrink:0,padding:"7px 12px",background:activeTab===id?T.blue:T.surface,border:`0.5px solid ${activeTab===id?T.blue:T.border}`,borderRadius:"var(--border-radius-md)",color:activeTab===id?"#fff":T.muted,fontSize:12,fontWeight:activeTab===id?500:400,cursor:"pointer"}}>{l}</button>
+    <div style={{padding:16,background:T.bg,minHeight:"100%"}}>
+      <div style={{display:"flex",gap:8,marginBottom:16,overflowX:"auto"}}>
+        {[["analytics",t.analytics],["editor",t.editor],["offers",t.offers],["add",t.addPlace]].map(([id,l])=>(
+          <button key={id} onClick={() => setActiveTab(id)} style={{background:activeTab===id?T.blue:T.surface,color:activeTab===id?"#fff":T.muted,padding:"8px 14px",borderRadius:8,border:"none",whiteSpace:"nowrap"}}>{l}</button>
         ))}
       </div>
-
-      {activeTab==="analytics"&&(
-        <>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
-            {[[t.aiShown,analytics?.ai_recommendations??0,T.blue],[t.checkins,analytics?.confirmed_visits??0,T.green],[t.gisClicks,analytics?.gis_clicks??0,T.muted],[t.conversion,(analytics?.conversion_pct??0)+"%",T.amber]].map(([l,v,c])=>(
-              <div key={l} style={{background:T.surface,border:`0.5px solid ${T.border}`,borderRadius:"var(--border-radius-lg)",padding:"12px 14px"}}>
-                <div style={{fontSize:11,color:T.muted,marginBottom:3}}>{l}</div>
-                <div style={{fontSize:22,fontWeight:500,color:c}}>{v}</div>
-              </div>
-            ))}
-          </div>
-          {analytics?.data_note&&<div style={{background:T.card,border:`0.5px solid ${T.border}`,borderRadius:"var(--border-radius-lg)",padding:14,fontSize:13,color:T.muted,textAlign:"center"}}>{analytics.data_note}</div>}
-          {analytics?.top_queries?.length>0&&(
-            <div style={{background:T.surface,border:`0.5px solid ${T.border}`,borderRadius:"var(--border-radius-lg)",padding:14,marginTop:12}}>
-              <div style={{fontSize:11,color:T.hint,letterSpacing:1,marginBottom:10}}>{t.topQueries}</div>
-              {analytics.top_queries.map(({query,count},i)=>(
-                <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:i<analytics.top_queries.length-1?`0.5px solid ${T.border}`:"none",fontSize:13}}>
-                  <span style={{color:T.muted}}>«{query}»</span>
-                  <span style={{color:T.blue,fontWeight:500}}>{count}×</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </>
-      )}
-
-      {activeTab==="editor"&&(
-        <div style={{background:T.surface,border:`0.5px solid ${T.border}`,borderRadius:"var(--border-radius-lg)",padding:14}}>
-          <Field label={t.ambientDesc} value={desc} onChange={e=>setDesc(e.target.value)} placeholder="Тихая кофейня с розетками..." multiline/>
-          <Field label={t.tagsLabel} value={tags} onChange={e=>setTags(e.target.value)} placeholder="wifi, розетки, тихо..."/>
-          <Btn onClick={handleSave} full color={saveState==="saving"?T.green:T.blue}>{saveState==="saving"?t.saving:t.save}</Btn>
-        </div>
-      )}
-
-      {activeTab==="offers"&&(
-        <div style={{background:T.surface,border:`0.5px solid ${T.border}`,borderRadius:"var(--border-radius-lg)",padding:14}}>
-          <Field label={t.offerTitle} value={offerTitle} onChange={e=>setOfferTitle(e.target.value)} placeholder="Капучино за 700 ₸"/>
-          <Field label={t.bonusText} value={bonusText} onChange={e=>setBonusText(e.target.value)} placeholder="Покажи экран — капучино в подарок"/>
-          <Field label={t.discountPct} value={discPct} onChange={e=>setDiscPct(e.target.value)} type="number"/>
-          {bonusText&&<div style={{background:T.amber+"12",border:`0.5px solid ${T.amber}33`,borderRadius:"var(--border-radius-md)",padding:"9px 12px",marginBottom:14,fontSize:12,color:T.amber}}>🎁 {t.preview}: {bonusText}{discPct>0?` (-${discPct}%)`:""}  </div>}
-          <Btn onClick={handleOffer} full color={offerState==="saved"?T.green:T.blue}>{offerState==="saved"?t.activated:t.activate}</Btn>
-        </div>
-      )}
-
-      {activeTab==="add"&&(
-        <div style={{background:T.surface,border:`0.5px solid ${T.border}`,borderRadius:"var(--border-radius-lg)",padding:14}}>
-          <div style={{fontSize:11,color:T.hint,letterSpacing:1,marginBottom:14}}>{t.addPlaceTitle.toUpperCase()}</div>
-          {[["name",t.fieldName,"Surf Coffee"],["address",t.fieldAddr,"пр. Кабанбай батыра, 11"],["ambient_description",t.fieldDesc,"Тихая кофейня с розетками...",true],["two_gis_url",t.fieldGis,"https://2gis.kz/..."]].map(([k,l,ph,ml])=>(
-            <Field key={k} label={l} value={newPlace[k]||""} onChange={e=>setNewPlace(p=>({...p,[k]:e.target.value}))} placeholder={ph} multiline={!!ml}/>
-          ))}
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
-            <Field label={t.fieldLat} value={newPlace.lat} onChange={e=>setNewPlace(p=>({...p,lat:e.target.value}))} placeholder="51.1282" type="number"/>
-            <Field label={t.fieldLng} value={newPlace.lng} onChange={e=>setNewPlace(p=>({...p,lng:e.target.value}))} placeholder="71.4314" type="number"/>
-          </div>
-          <div style={{marginBottom:14,display:"flex",gap:16}}>
-            <label style={{display:"flex",alignItems:"center",gap:6,fontSize:13,color:T.muted,cursor:"pointer"}}>
-              <input type="checkbox" checked={newPlace.has_wifi} onChange={e=>setNewPlace(p=>({...p,has_wifi:e.target.checked}))}/>{t.fieldWifi}
-            </label>
-            <label style={{display:"flex",alignItems:"center",gap:6,fontSize:13,color:T.muted,cursor:"pointer"}}>
-              <input type="checkbox" checked={newPlace.has_outlets} onChange={e=>setNewPlace(p=>({...p,has_outlets:e.target.checked}))}/>{t.fieldOutlets}
-            </label>
-          </div>
-          <Btn onClick={handleAdd} disabled={!newPlace.name||!newPlace.address||addState==="submitting"} full color={addState==="added"?T.green:T.blue}>
-            {addState==="submitting"?t.submitting:addState==="added"?t.added:t.submit}
-          </Btn>
-          {addState==="added"&&<div style={{fontSize:12,color:T.hint,textAlign:"center",marginTop:8}}>Google Indexing API уведомлён ✓</div>}
-        </div>
-      )}
+      {activeTab==="analytics"&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><div style={{background:T.surface,padding:16,borderRadius:12}}><div style={{fontSize:11}}>{t.aiShown}</div><div style={{fontSize:24}}>0</div></div><div style={{background:T.surface,padding:16,borderRadius:12}}><div style={{fontSize:11}}>{t.checkins}</div><div style={{fontSize:24}}>0</div></div></div>}
+      {activeTab==="add"&&<div style={{background:T.surface,padding:16,borderRadius:12}}>
+          <Field label={t.fieldName} value={newPlace.name} onChange={e=>setNewPlace({...newPlace,name:e.target.value})}/>
+          <Field label={t.fieldAddr} value={newPlace.address} onChange={e=>setNewPlace({...newPlace,address:e.target.value})}/>
+          <Btn onClick={handleAdd} full>{addState==="added"?t.added:t.submit}</Btn>
+      </div>}
     </div>
   );
 }
 
-// ── LANG PICKER ──────────────────────────────────────────────
-function LangPicker({lang,setLang,t}){
-  return (
-    <div style={{display:"flex",gap:4}}>
-      {[["ru","RU"],["kz","ҚЗ"],["en","EN"]].map(([l,label])=>(
-        <button key={l} onClick={()=>setLang(l)} style={{padding:"3px 8px",background:lang===l?T.blue:"transparent",border:`0.5px solid ${lang===l?T.blue:T.border}`,borderRadius:"var(--border-radius-md)",color:lang===l?"#fff":T.muted,fontSize:11,fontWeight:lang===l?600:400,cursor:"pointer"}}>{label}</button>
-      ))}
-    </div>
-  );
-}
-// ── PUBLIC LANDING (для индексации и гостей) ──────────────────
-function PublicLanding({ lang, t, onLoginClick }) {
-  const [places, setPlaces] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const loadPlaces = async () => {
-      // Пытаемся достать всё, что есть в базе через твой поиск
-      const r = await apiSearch("все заведения", lang, null);
-      if (r.place) setPlaces([r.place]); 
-      // Примечание: если на бэкенде сделать эндпоинт для списка всех — будет ещё лучше.
-      setLoading(false);
-    };
-    loadPlaces();
-  }, [lang]);
+// ── MAIN APP ─────────────────────────────────────────────────
+export default function App() {
+  const [lang, setLang] = useState("ru");
+  const [user, setUser] = useState(loadSession());
+  const [view, setView] = useState(user ? (user.role==="VENDOR"?"vendor":"chat") : "auth");
+  const [activePlace, setActivePlace] = useState(null);
+  const t = I18N[lang];
 
   return (
-    <div style={{ minHeight: "100vh", background: T.bg, padding: "20px 16px" }}>
-      <header style={{ textAlign: "center", marginBottom: 30 }}>
-        <div style={{ width: 50, height: 50, borderRadius: 12, background: T.blue, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 24, color: "#fff", margin: "0 auto 10px" }}>V</div>
-        <h1 style={{ color: T.text, fontSize: 26, margin: 0 }}>VIZIT AI</h1>
-        <p style={{ color: T.muted, fontSize: 14 }}>{t.appSub}</p>
-      </header>
-
-      <div style={{ display: "flex", gap: 10, marginBottom: 24 }}>
-        <Btn onClick={onLoginClick} full>{t.login} / {t.register}</Btn>
-      </div>
-
-      <h2 style={{ color: T.text, fontSize: 18, marginBottom: 15 }}>Популярные места в Астане</h2>
-      
-      {loading ? (
-        <div style={{ color: T.hint }}>Загрузка данных для AI...</div>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 15 }}>
-          {places.length > 0 ? places.map((p, i) => (
-            <div key={i} style={{ background: T.surface, border: `1px solid ${T.border2}`, borderRadius: 16, padding: 16 }}>
-              <div style={{ fontSize: 20, marginBottom: 5 }}>{p.emoji || "📍"}</div>
-              <div style={{ fontWeight: 600, color: T.text, fontSize: 16 }}>{p.name}</div>
-              <div style={{ color: T.hint, fontSize: 12, marginBottom: 8 }}>{p.address}</div>
-              <div style={{ color: T.muted, fontSize: 14, lineHeight: 1.5 }}>{p.ambient_description}</div>
-              <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 5 }}>
-                {p.tags?.map(tg => <Tag key={tg} label={tg} />)}
-              </div>
+    <div style={{maxWidth:500,margin:"0 auto",height:"100vh",background:T.bg,fontFamily:"sans-serif"}}>
+      {view === "auth" ? <AuthPage onAuth={(u)=>{saveSession(u); setUser(u); setView("chat")}} onGuest={()=>setView("chat")} t={t}/> : (
+        <div style={{height:"100%",display:"flex",flexDirection:"column"}}>
+          <div style={{padding:12,background:T.surface,borderBottom:`1px solid ${T.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <span style={{fontWeight:700,color:T.blue}}>VIZIT AI</span>
+            <div style={{display:"flex",gap:10}}>
+              {["ru","kz","en"].map(l=><button key={l} onClick={()=>setLang(l)} style={{background:"none",border:"none",fontWeight:lang===l?700:400,fontSize:12}}>{l.toUpperCase()}</button>)}
             </div>
-          )) : (
-            <div style={{ textAlign: "center", color: T.hint, padding: 40 }}>
-              {t.noPlaces}
-            </div>
-          )}
+          </div>
+          <div style={{flex:1,overflow:"hidden"}}>
+            {view==="chat" ? <ChatPage lang={lang} t={t} onCheckin={setActivePlace}/> : <VendorDashboard user={user} t={t}/>}
+          </div>
+          <div style={{padding:10,background:T.surface,borderTop:`1px solid ${T.border}`,display:"flex",justifyContent:"space-around"}}>
+             <button onClick={()=>setView("chat")} style={{background:"none",border:"none",color:view==="chat"?T.blue:T.muted}}>💬 {t.search}</button>
+             <button onClick={()=>setView("vendor")} style={{background:"none",border:"none",color:view==="vendor"?T.blue:T.muted}}>🏢 {t.cabinet}</button>
+          </div>
         </div>
       )}
-      
-      <footer style={{ marginTop: 40, textAlign: "center", color: T.hint, fontSize: 11 }}>
-        © 2026 VIZIT AI. Лучший гид по заведениям Астаны.
-      </footer>
-    </div>
-  );
-}
-// ── APP ──────────────────────────────────────────────────────
-export default function App(){
-  const [lang,setLang]=useState("ru");
-  const [user,setUser]=useState(()=>loadSession());
-  const [tab,setTab]=useState("chat");
-  const [view, setView] = useState("landing"); // Новое состояние: витрина или логин
-  const [checkinPlace,setCheckinPlace]=useState(null);
-  const t = I18N[lang]||I18N.ru;
-
-  const handleAuth=(u)=>{ saveSession(u); setUser(u); };
-  const handleGuest=()=>{ const u={id:"guest",role:"GUEST",name:t.roleGuest}; saveSession(u); setUser(u); };
-  const handleLogout=()=>{ saveSession(null); setUser(null); setTab("chat"); setView("landing"); };
-
-  // 1. ЕСЛИ ЮЗЕР НЕ ЗАЛОГИНЕН
-  if(!user) {
-    return (
-      <div style={{maxWidth:520, margin:"0 auto", background:T.bg, minHeight:"100vh", position:"relative"}}>
-        {/* Переключатель языков всегда доступен для ботов */}
-        <div style={{position:"absolute", top:10, right:10, zIndex:100}}>
-          <LangPicker lang={lang} setLang={setLang} t={t}/>
-        </div>
-
-        {view === "landing" ? (
-          <PublicLanding lang={lang} t={t} onLoginClick={() => setView("auth")} />
-        ) : (
-          <div style={{paddingTop: 40}}>
-            <AuthPage onAuth={handleAuth} onGuest={handleGuest} lang={lang} t={t}/>
-            <button 
-              onClick={() => setView("landing")}
-              style={{display:"block", margin:"20px auto", background:"none", border:"none", color:T.blue, cursor:"pointer", fontSize:13}}
-            >
-              ← {lang === "ru" ? "Назад к заведениям" : "Back to places"}
-            </button>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // 2. ЕСЛИ ЮЗЕР ЗАЛОГИНЕН (оставляем твою логику)
-  const isVendor = user.role==="VENDOR";
-  const isGuest  = user.role==="GUEST";
-
-  const tabs=[
-    {id:"chat",icon:"🏙",label:t.search},
-    ...(isVendor?[{id:"vendor",icon:"📊",label:t.cabinet}]:[]),
-    ...(!isGuest?[{id:"profile",icon:"👤",label:t.profile}]:[]),
-  ];
-
-  return (
-    <div style={{maxWidth:520,margin:"0 auto",display:"flex",flexDirection:"column",height:"100vh",background:T.bg,fontFamily:"var(--font-sans)"}}>
-      {checkinPlace&&<CheckInModal place={checkinPlace} t={t} onClose={()=>setCheckinPlace(null)}/>}
-
-      <div style={{padding:"10px 14px",background:T.surface,borderBottom:`0.5px solid ${T.border}`,display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
-        <div style={{width:28,height:28,borderRadius:"var(--border-radius-md)",background:T.blue,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:13,color:"#fff",flexShrink:0}}>V</div>
-        <div style={{flex:1,minWidth:0}}>
-          <span style={{fontWeight:500,fontSize:14,color:T.text}}>VIZIT AI</span>
-          <Badge c={user.role==="VENDOR"?T.amber:user.role==="GUEST"?T.hint:T.blue} label={t["role"+user.role]||user.role} style={{marginLeft:6}}/>
-        </div>
-        <LangPicker lang={lang} setLang={setLang} t={t}/>
-        <button onClick={handleLogout} style={{background:"none",border:"none",color:T.hint,fontSize:12,cursor:"pointer",padding:"4px",flexShrink:0}}>{t.logout}</button>
-      </div>
-
-      <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
-        {tab==="chat"   &&<ChatPage user={user} lang={lang} t={t} onCheckin={setCheckinPlace}/>}
-        {tab==="vendor" &&isVendor&&<div style={{flex:1,overflowY:"auto"}}><VendorDashboard user={user} t={t}/></div>}
-        {tab==="profile"&&!isGuest&&(
-          <div style={{flex:1,overflowY:"auto",padding:16}}>
-            <div style={{background:T.surface,border:`0.5px solid ${T.border}`,borderRadius:"var(--border-radius-lg)",padding:16,display:"flex",alignItems:"center",gap:12,marginBottom:14}}>
-              <div style={{width:44,height:44,borderRadius:"50%",background:T.blue+"22",border:`0.5px solid ${T.blue}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>👤</div>
-              <div style={{flex:1}}>
-                <div style={{fontWeight:500,fontSize:15,color:T.text}}>{user.name}</div>
-                <div style={{fontSize:12,color:T.hint}}>{user.email}</div>
-              </div>
-            </div>
-            <div style={{background:T.card,border:`0.5px solid ${T.border}`,borderRadius:"var(--border-radius-lg)",padding:14,fontSize:13,color:T.muted,textAlign:"center"}}>{t.noData}</div>
-          </div>
-        )}
-      </div>
-
-      <div style={{background:T.surface,borderTop:`0.5px solid ${T.border}`,display:"flex",flexShrink:0, paddingBottom: "env(safe-area-inset-bottom)"}}>
-        {tabs.map(({id,icon,label})=>(
-          <button key={id} onClick={()=>setTab(id)} style={{flex:1,padding:"10px 0",background:"none",border:"none",color:tab===id?T.blue:T.hint,fontSize:10,fontWeight:tab===id?500:400,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
-            <span style={{fontSize:16}}>{icon}</span>{label}
-          </button>
-        ))}
-        {isGuest&&<button onClick={()=>{ saveSession(null); setUser(null); setView("auth"); }} style={{flex:1,padding:"10px 0",background:"none",border:"none",color:T.hint,fontSize:10,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:2}}><span style={{fontSize:16}}>🔑</span>{t.login}</button>}
-      </div>
+      {activePlace && <CheckInModal place={activePlace} t={t} onClose={()=>setActivePlace(null)}/>}
     </div>
   );
 }
