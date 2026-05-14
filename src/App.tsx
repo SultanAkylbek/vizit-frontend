@@ -529,21 +529,104 @@ function LangPicker({lang,setLang,t}){
     </div>
   );
 }
+// ── PUBLIC LANDING (для индексации и гостей) ──────────────────
+function PublicLanding({ lang, t, onLoginClick }) {
+  const [places, setPlaces] = useState([]);
+  const [loading, setLoading] = useState(true);
 
+  useEffect(() => {
+    const loadPlaces = async () => {
+      // Пытаемся достать всё, что есть в базе через твой поиск
+      const r = await apiSearch("все заведения", lang, null);
+      if (r.place) setPlaces([r.place]); 
+      // Примечание: если на бэкенде сделать эндпоинт для списка всех — будет ещё лучше.
+      setLoading(false);
+    };
+    loadPlaces();
+  }, [lang]);
+
+  return (
+    <div style={{ minHeight: "100vh", background: T.bg, padding: "20px 16px" }}>
+      <header style={{ textAlign: "center", marginBottom: 30 }}>
+        <div style={{ width: 50, height: 50, borderRadius: 12, background: T.blue, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 24, color: "#fff", margin: "0 auto 10px" }}>V</div>
+        <h1 style={{ color: T.text, fontSize: 26, margin: 0 }}>VIZIT AI</h1>
+        <p style={{ color: T.muted, fontSize: 14 }}>{t.appSub}</p>
+      </header>
+
+      <div style={{ display: "flex", gap: 10, marginBottom: 24 }}>
+        <Btn onClick={onLoginClick} full>{t.login} / {t.register}</Btn>
+      </div>
+
+      <h2 style={{ color: T.text, fontSize: 18, marginBottom: 15 }}>Популярные места в Астане</h2>
+      
+      {loading ? (
+        <div style={{ color: T.hint }}>Загрузка данных для AI...</div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 15 }}>
+          {places.length > 0 ? places.map((p, i) => (
+            <div key={i} style={{ background: T.surface, border: `1px solid ${T.border2}`, borderRadius: 16, padding: 16 }}>
+              <div style={{ fontSize: 20, marginBottom: 5 }}>{p.emoji || "📍"}</div>
+              <div style={{ fontWeight: 600, color: T.text, fontSize: 16 }}>{p.name}</div>
+              <div style={{ color: T.hint, fontSize: 12, marginBottom: 8 }}>{p.address}</div>
+              <div style={{ color: T.muted, fontSize: 14, lineHeight: 1.5 }}>{p.ambient_description}</div>
+              <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 5 }}>
+                {p.tags?.map(tg => <Tag key={tg} label={tg} />)}
+              </div>
+            </div>
+          )) : (
+            <div style={{ textAlign: "center", color: T.hint, padding: 40 }}>
+              {t.noPlaces}
+            </div>
+          )}
+        </div>
+      )}
+      
+      <footer style={{ marginTop: 40, textAlign: "center", color: T.hint, fontSize: 11 }}>
+        © 2026 VIZIT AI. Лучший гид по заведениям Астаны.
+      </footer>
+    </div>
+  );
+}
 // ── APP ──────────────────────────────────────────────────────
 export default function App(){
   const [lang,setLang]=useState("ru");
   const [user,setUser]=useState(()=>loadSession());
   const [tab,setTab]=useState("chat");
+  const [view, setView] = useState("landing"); // Новое состояние: витрина или логин
   const [checkinPlace,setCheckinPlace]=useState(null);
   const t = I18N[lang]||I18N.ru;
 
   const handleAuth=(u)=>{ saveSession(u); setUser(u); };
   const handleGuest=()=>{ const u={id:"guest",role:"GUEST",name:t.roleGuest}; saveSession(u); setUser(u); };
-  const handleLogout=()=>{ saveSession(null); setUser(null); setTab("chat"); };
+  const handleLogout=()=>{ saveSession(null); setUser(null); setTab("chat"); setView("landing"); };
 
-  if(!user) return <AuthPage onAuth={handleAuth} onGuest={handleGuest} lang={lang} t={t}/>;
+  // 1. ЕСЛИ ЮЗЕР НЕ ЗАЛОГИНЕН
+  if(!user) {
+    return (
+      <div style={{maxWidth:520, margin:"0 auto", background:T.bg, minHeight:"100vh", position:"relative"}}>
+        {/* Переключатель языков всегда доступен для ботов */}
+        <div style={{position:"absolute", top:10, right:10, zIndex:100}}>
+          <LangPicker lang={lang} setLang={setLang} t={t}/>
+        </div>
 
+        {view === "landing" ? (
+          <PublicLanding lang={lang} t={t} onLoginClick={() => setView("auth")} />
+        ) : (
+          <div style={{paddingTop: 40}}>
+            <AuthPage onAuth={handleAuth} onGuest={handleGuest} lang={lang} t={t}/>
+            <button 
+              onClick={() => setView("landing")}
+              style={{display:"block", margin:"20px auto", background:"none", border:"none", color:T.blue, cursor:"pointer", fontSize:13}}
+            >
+              ← {lang === "ru" ? "Назад к заведениям" : "Back to places"}
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // 2. ЕСЛИ ЮЗЕР ЗАЛОГИНЕН (оставляем твою логику)
   const isVendor = user.role==="VENDOR";
   const isGuest  = user.role==="GUEST";
 
@@ -584,13 +667,13 @@ export default function App(){
         )}
       </div>
 
-      <div style={{background:T.surface,borderTop:`0.5px solid ${T.border}`,display:"flex",flexShrink:0}}>
+      <div style={{background:T.surface,borderTop:`0.5px solid ${T.border}`,display:"flex",flexShrink:0, paddingBottom: "env(safe-area-inset-bottom)"}}>
         {tabs.map(({id,icon,label})=>(
           <button key={id} onClick={()=>setTab(id)} style={{flex:1,padding:"10px 0",background:"none",border:"none",color:tab===id?T.blue:T.hint,fontSize:10,fontWeight:tab===id?500:400,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
             <span style={{fontSize:16}}>{icon}</span>{label}
           </button>
         ))}
-        {isGuest&&<button onClick={()=>{ saveSession(null); setUser(null); }} style={{flex:1,padding:"10px 0",background:"none",border:"none",color:T.hint,fontSize:10,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:2}}><span style={{fontSize:16}}>🔑</span>{t.login}</button>}
+        {isGuest&&<button onClick={()=>{ saveSession(null); setUser(null); setView("auth"); }} style={{flex:1,padding:"10px 0",background:"none",border:"none",color:T.hint,fontSize:10,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:2}}><span style={{fontSize:16}}>🔑</span>{t.login}</button>}
       </div>
     </div>
   );
