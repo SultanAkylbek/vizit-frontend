@@ -2,13 +2,11 @@
 import { useState } from "react";
 import { T, Btn, Field, GateLabel } from "../components/ui";
 import { placesApi, offersApi, ApiError } from "../api";
-import type { VendorPlaceInput } from "../api";
 import { usePlaces } from "../hooks/usePlaces";
-import type { User, I18nDict } from "../types";
 
 interface Props {
-  user: User;
-  t: I18nDict;
+  user: any;
+  t: any;
 }
 
 const CATEGORY_OPTIONS: VendorPlaceInput["category"][] = [
