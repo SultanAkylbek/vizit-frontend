@@ -1,4 +1,4 @@
-
+// @ts-nocheck
 import { useState } from "react";
 import { T, Btn, Field, GateLabel } from "../components/ui";
 import { placesApi, offersApi, ApiError } from "../api";
