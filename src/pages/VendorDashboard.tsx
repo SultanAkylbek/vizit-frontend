@@ -1,7 +1,11 @@
-// @ts-nocheck
 import { useState } from "react";
 import { placesApi, offersApi, ApiError } from "../api";
 import { usePlaces } from "../hooks/usePlaces";
+
+interface VendorDashboardProps {
+  user: any;
+  t: any;
+}
 
 const CATEGORY_OPTIONS = ["cafe", "restaurant", "barbershop", "sto", "gym", "other"];
 
@@ -20,16 +24,16 @@ const EMPTY_FORM = {
   has_wifi: false,
 };
 
-export function VendorDashboard({ t }) {
+export function VendorDashboard({ t }: VendorDashboardProps) {
   const { places, refetch } = usePlaces();
-  const [activeTab, setActiveTab] = useState("add");
+  const [activeTab, setActiveTab] = useState<string>("add");
 
-  const [form, setForm] = useState(EMPTY_FORM);
-  const [tagsInput, setTagsInput] = useState("");
-  const [submitState, setSubmitState] = useState("idle");
-  const [errorMsg, setErrorMsg] = useState(null);
+  const [form, setForm] = useState<any>(EMPTY_FORM);
+  const [tagsInput, setTagsInput] = useState<string>("");
+  const [submitState, setSubmitState] = useState<string>("idle");
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const updateField = (key, value) => setForm((f) => ({ ...f, [key]: value }));
+  const updateField = (key: string, value: any) => setForm((f: any) => ({ ...f, [key]: value }));
 
   const canSubmit =
     form.name.trim() &&
@@ -62,11 +66,11 @@ export function VendorDashboard({ t }) {
     }
   };
 
-  const [offerTitle, setOfferTitle] = useState("");
-  const [offerBonus, setOfferBonus] = useState("");
-  const [offerDiscount, setOfferDiscount] = useState("0");
-  const [offerState, setOfferState] = useState("idle");
-  const [offerError, setOfferError] = useState(null);
+  const [offerTitle, setOfferTitle] = useState<string>("");
+  const [offerBonus, setOfferBonus] = useState<string>("");
+  const [offerDiscount, setOfferDiscount] = useState<string>("0");
+  const [offerState, setOfferState] = useState<string>("idle");
+  const [offerError, setOfferError] = useState<string | null>(null);
 
   const myPlace = places && places[0];
 
@@ -124,7 +128,7 @@ export function VendorDashboard({ t }) {
             <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#374151", marginBottom: "6px" }}>Категория</label>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
               {CATEGORY_OPTIONS.map((cat) => (
-                <button key={cat} onClick={() => updateField("category", cat)} style={{ padding: "6px 12px", borderRadius: "20px", border: `1.5px solid ${form.category === cat ? "#111827" : "#e5e7eb"}`, background: form.category === cat ? "#111827" : "#fff", color: form.category === cat ? "#fff" : "#4b5563", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>
+                <button key={cat} type="button" onClick={() => updateField("category", cat)} style={{ padding: "6px 12px", borderRadius: "20px", border: `1.5px solid ${form.category === cat ? "#111827" : "#e5e7eb"}`, background: form.category === cat ? "#111827" : "#fff", color: form.category === cat ? "#fff" : "#4b5563", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>
                   {cat}
                 </button>
               ))}
@@ -143,7 +147,7 @@ export function VendorDashboard({ t }) {
 
           <div style={{ marginBottom: "12px" }}>
             <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#374151", marginBottom: "4px" }}>Описание атмосферы *</label>
-            <textarea value={form.ambient_description} onChange={(e) => updateField("ambient_description", e.target.value)} style={{ width: "100%", padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px", minHeight: "8px", boxSizing: "border-box" }} placeholder="Тихая уютная кофейня с виниловым проигрывателем..." />
+            <textarea value={form.ambient_description} onChange={(e) => updateField("ambient_description", e.target.value)} style={{ width: "100%", padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px", boxSizing: "border-box" }} placeholder="Тихая уютная кофейня..." />
           </div>
 
           <div style={{ marginBottom: "12px" }}>
@@ -169,7 +173,7 @@ export function VendorDashboard({ t }) {
             <div style={{ color: "#ef4444", background: "#fef2f2", padding: "10px", borderRadius: "6px", fontSize: "12px", marginBottom: "12px" }}>{errorMsg}</div>
           )}
 
-          <button onClick={handleSubmit} disabled={!canSubmit} style={{ width: "100%", padding: "12px", background: submitState === "success" ? "#10b981" : "#111827", color: "#fff", border: "none", borderRadius: "8px", fontWeight: 700, cursor: canSubmit ? "pointer" : "not-allowed", opacity: canSubmit ? 1 : 0.6 }}>
+          <button type="button" onClick={handleSubmit} disabled={!canSubmit} style={{ width: "100%", padding: "12px", background: submitState === "success" ? "#10b981" : "#111827", color: "#fff", border: "none", borderRadius: "8px", fontWeight: 700, cursor: canSubmit ? "pointer" : "not-allowed", opacity: canSubmit ? 1 : 0.6 }}>
             {submitState === "submitting" ? "Сохранение..." : submitState === "success" ? "Успешно сохранено! 🎉" : "Сохранить заведение"}
           </button>
         </div>
@@ -194,7 +198,7 @@ export function VendorDashboard({ t }) {
             <div style={{ color: "#ef4444", background: "#fef2f2", padding: "10px", borderRadius: "6px", fontSize: "12px", marginBottom: "12px" }}>{offerError}</div>
           )}
 
-          <button onClick={handleOfferSubmit} disabled={!offerTitle.trim() || !offerBonus.trim() || offerState === "submitting"} style={{ width: "100%", padding: "12px", background: offerState === "success" ? "#10b981" : "#111827", color: "#fff", border: "none", borderRadius: "8px", fontWeight: 700, cursor: "pointer" }}>
+          <button type="button" onClick={handleOfferSubmit} disabled={!offerTitle.trim() || !offerBonus.trim() || offerState === "submitting"} style={{ width: "100%", padding: "12px", background: offerState === "success" ? "#10b981" : "#111827", color: "#fff", border: "none", borderRadius: "8px", fontWeight: 700, cursor: "pointer" }}>
             {offerState === "submitting" ? "Активация..." : offerState === "success" ? "Акция активирована! 🚀" : "Активировать акцию"}
           </button>
         </div>
