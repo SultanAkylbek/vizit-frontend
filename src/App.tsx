@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { VendorDashboard } from "./pages/VendorDashboard";
 
 // ── i18n ────────────────────────────────────────────────────
 const I18N = {
@@ -407,25 +408,7 @@ function ChatPage({user,lang,t,onCheckin}){
 }
 
 // ── VENDOR DASHBOARD ─────────────────────────────────────────
-function VendorDashboard({user,t}){
-  const [activeTab,setActiveTab]=useState("analytics");
-  const [analytics,setAnalytics]=useState(null);
-  const [place,setPlace]=useState(null);
-  const [desc,setDesc]=useState("");
-  const [tags,setTags]=useState("");
-  const [offerTitle,setOfferTitle]=useState("");
-  const [bonusText,setBonusText]=useState("");
-  const [discPct,setDiscPct]=useState("0");
-  const [saveState,setSaveState]=useState("idle");
-  const [offerState,setOfferState]=useState("idle");
-  const [addState,setAddState]=useState("idle");
-  const [newPlace,setNewPlace]=useState({name:"",category:"cafe",address:"",district:"Есіл",ambient_description:"",lat:"",lng:"",two_gis_url:"",avg_check_kzt:"",has_wifi:false,has_outlets:false,tags:""});
-
-  // Load vendor analytics (simulated empty state for demo)
-  useEffect(()=>{
-    setAnalytics({ai_recommendations:0,confirmed_visits:0,gis_clicks:0,conversion_pct:0,top_queries:[],data_note:t.noData});
-    setPlace(null);
-  },[]);
+,[]);
 
   const handleSave=()=>{ setSaveState("saving"); setTimeout(()=>setSaveState("idle"),2000); };
   const handleOffer=()=>{ setOfferState("saved"); setTimeout(()=>setOfferState("idle"),2000); };
@@ -652,7 +635,7 @@ export default function App(){
 
       <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
         {tab==="chat"   &&<ChatPage user={user} lang={lang} t={t} onCheckin={setCheckinPlace}/>}
-        {tab==="vendor" &&isVendor&&<div style={{flex:1,overflowY:"auto"}}><VendorDashboard user={user} t={t}/></div>}
+        {tab==="vendor" && isVendor && <VendorDashboard user={user} t={t}/>}
         {tab==="profile"&&!isGuest&&(
           <div style={{flex:1,overflowY:"auto",padding:16}}>
             <div style={{background:T.surface,border:`0.5px solid ${T.border}`,borderRadius:"var(--border-radius-lg)",padding:16,display:"flex",alignItems:"center",gap:12,marginBottom:14}}>
