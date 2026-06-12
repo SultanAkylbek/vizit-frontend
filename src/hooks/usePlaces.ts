@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 import { placesApi, ApiError } from "../api";
-import type { Place, SearchPayload } from "../types";
 
 // ── Список всех заведений (для лендинга) ─────────────────────
 export function usePlaces() {
