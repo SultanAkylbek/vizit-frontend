@@ -1,4 +1,3 @@
-// @ts-nocheck
 const API_BASE = "https://vizit-backend-vdt2.onrender.com";
 
 export class ApiError extends Error {
@@ -39,15 +38,15 @@ async function request(path: string, options: any = {}): Promise<any> {
 }
 
 export const authApi = {
-  login: (payload: any) => request("/api/v1/auth/login", { method: "POST", body: JSON.stringify(payload) }),
-  register: (payload: any) => request("/api/v1/auth/register", { method: "POST", body: JSON.stringify(payload) }),
-  me: () => request("/api/v1/auth/me"),
+  login: (payload: any): Promise<any> => request("/api/v1/auth/login", { method: "POST", body: JSON.stringify(payload) }),
+  register: (payload: any): Promise<any> => request("/api/v1/auth/register", { method: "POST", body: JSON.stringify(payload) }),
+  me: (): Promise<any> => request("/api/v1/auth/me"),
 };
 
 export const placesApi = {
-  list: () => request("/api/v1/places"),
-  search: (payload: any) => request("/api/v1/search", { method: "POST", body: JSON.stringify(payload) }),
-  upsertMine: (data: any, idempotencyKey: string) =>
+  list: (): Promise<any> => request("/api/v1/places"),
+  search: (payload: any): Promise<any> => request("/api/v1/search", { method: "POST", body: JSON.stringify(payload) }),
+  upsertMine: (data: any, idempotencyKey?: string): Promise<any> =>
     request("/api/v1/vendor/place", {
       method: "POST",
       body: JSON.stringify(data),
@@ -56,7 +55,7 @@ export const placesApi = {
 };
 
 export const offersApi = {
-  upsert: (placeId: string, offer: any, idempotencyKey: string) =>
+  upsert: (placeId: string, offer: any, idempotencyKey?: string): Promise<any> =>
     request(`/api/v1/vendor/place/${placeId}/offer`, {
       method: "PUT",
       body: JSON.stringify(offer),
@@ -65,5 +64,5 @@ export const offersApi = {
 };
 
 export const analyticsApi = {
-  vendor: () => request("/api/v1/vendor/analytics"),
+  vendor: (): Promise<any> => request("/api/v1/vendor/analytics"),
 };
