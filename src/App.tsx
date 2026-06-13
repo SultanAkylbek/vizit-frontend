@@ -407,7 +407,6 @@ function ChatPage({user,lang,t,onCheckin}){
   );
 }
 
-
 // ── LANG PICKER ──────────────────────────────────────────────
 function LangPicker({lang,setLang,t}){
   return (
