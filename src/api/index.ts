@@ -75,22 +75,25 @@ export class ApiError extends Error {
 async function req<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = localStorage.getItem("vizit_token");
 
-  // Инициализируем Headers (если в options уже были заголовки, они скопируются сюда)
+  // 1. Создаем нормальный объект Headers на основе того, что передали в options
   const headers = new Headers(options.headers);
 
-  // Явно проставляем Content-Type, если он еще не был задан
+  // 2. Гарантируем, что Content-Type стоит
   if (!headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
 
-  // Если токен есть в localStorage, жестко пишем его в Authorization
+  // 3. Если токен есть — ЖЕСТКО вшиваем его, никто его уже не сотрет
   if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
+    headers.set("Authorization", "Bearer " + token);
+  } else {
+    console.warn("⚠️ Токен 'vizit_token' не найден в localStorage!");
   }
 
+  // 4. Передаем headers напрямую в fetch
   const res = await fetch(API_BASE + path, {
     ...options,
-    headers, // Передаем валидный объект Headers напрямую в fetch
+    headers: headers, // Передаем объект Headers напрямую
   });
 
   if (!res.ok) {
