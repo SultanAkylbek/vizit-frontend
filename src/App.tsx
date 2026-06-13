@@ -402,17 +402,23 @@ function ChatPage({user,lang,t,onCheckin}){
         <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&send()} placeholder={t.chatPlaceholder} style={{flex:1,borderRadius:"var(--border-radius-md)",padding:"10px 13px",fontSize:14}}/>
         <button onClick={()=>send()} disabled={loading} style={{background:loading?T.card:T.blue,color:loading?T.muted:"#fff",border:`0.5px solid ${loading?T.border:T.blue}`,borderRadius:"var(--border-radius-md)",padding:"10px 16px",fontSize:17,cursor:loading?"default":"pointer"}}>→</button>
       </div>
-      <style>{`@keyframes pulse{0%,100%{opacity:.3;transform:scale(.8)}50%{opacity:1;transform:scale(1.2)}}`}</style>
+     <style>{`@keyframes pulse{0%,100%{opacity:.3;transform:scale(.8)}50%{opacity:1;transform:scale(1.2)}}`}</style>
     </div>
   );
 }
 
-// ── LANG PICKER ──────────────────────────────────────────────
-function LangPicker({lang,setLang,t}){
+// ── LANG PICKER ──
+function LangPicker({ lang, setLang, t }) {
   return (
-    <div style={{display:"flex",gap:4}}>
-      {[["ru","RU"],["kz","ҚЗ"],["en","EN"]].map(([l,label])=>(
-        <button key={l} onClick={()=>setLang(l)} style={{padding:"3px 8px",background:lang===l?T.blue:"transparent",border:`0.5px solid ${lang===l?T.blue:T.border}`,borderRadius:"var(--border-radius-md)",color:lang===l?"#fff":T.muted,fontSize:11,fontWeight:lang===l?600:400,cursor:"pointer"}}>{label}</button>
+    <div style={{ display: "flex", gap: 4 }}>
+      {[["ru", "RU"], ["kz", "КЗ"], ["en", "EN"]].map(([l, label]) => (
+        <button 
+          key={l} 
+          onClick={() => setLang(l)} 
+          style={{ padding: "3px 8px", background: lang === l ? "#378ADD" : "transparent", border: "0.5px solid #ccc", cursor: "pointer", borderRadius: "4px" }}
+        >
+          {label}
+        </button>
       ))}
     </div>
   );
