@@ -1,15 +1,51 @@
+// src/pages/VendorDashboard.tsx
+// Зависит только от ../api/index.ts и ../hooks/usePlaces.ts
+// Никаких ../components/ui, никаких ../types
+
 import { useState } from "react";
-import { placesApi, offersApi, ApiError } from "../api";
+import { placesApi, offersApi, ApiError } from "../api/index";
+import type { VendorPlaceInput } from "../api/index";
 import { usePlaces } from "../hooks/usePlaces";
 
-interface VendorDashboardProps {
-  user: any;
-  t: any;
-}
+// ── Стили из App.tsx (скопированы, чтобы не зависеть от ui.tsx) ──
+const C = {
+  bg: "var(--color-background-tertiary)",
+  surface: "var(--color-background-primary)",
+  border: "var(--color-border-tertiary)",
+  border2: "var(--color-border-secondary)",
+  text: "var(--color-text-primary)",
+  muted: "var(--color-text-secondary)",
+  hint: "var(--color-text-tertiary)",
+  blue: "#378ADD",
+  green: "#1D9E75",
+  red: "#D85A30",
+  redBg: "rgba(216,90,48,0.08)",
+};
 
-const CATEGORY_OPTIONS = ["cafe", "restaurant", "barbershop", "sto", "gym", "other"];
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "9px 12px",
+  fontSize: 13,
+  borderRadius: 8,
+  border: "0.5px solid " + C.border2,
+  background: C.surface,
+  color: C.text,
+  fontFamily: "inherit",
+  boxSizing: "border-box",
+};
 
-const EMPTY_FORM = {
+const labelStyle: React.CSSProperties = {
+  display: "block",
+  fontSize: 12,
+  color: C.muted,
+  marginBottom: 5,
+};
+
+const fieldWrap: React.CSSProperties = { marginBottom: 12 };
+
+const CATEGORIES = ["cafe", "restaurant", "barbershop", "sto", "gym", "other"];
+
+const EMPTY: VendorPlaceInput = {
   name: "",
   category: "cafe",
   address: "",
@@ -24,183 +60,253 @@ const EMPTY_FORM = {
   has_wifi: false,
 };
 
-export function VendorDashboard({ t }: VendorDashboardProps) {
+function genKey(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return Date.now().toString(36) + Math.random().toString(36).slice(2);
+}
+
+interface Props {
+  user: { id: string; role: string; name: string; email: string };
+  t: Record<string, any>;
+}
+
+export function VendorDashboard({ t }: Props) {
   const { places, refetch } = usePlaces();
-  const [activeTab, setActiveTab] = useState<string>("add");
+  const myPlace = places[0] ?? null;
 
-  const [form, setForm] = useState<any>(EMPTY_FORM);
-  const [tagsInput, setTagsInput] = useState<string>("");
-  const [submitState, setSubmitState] = useState<string>("idle");
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [tab, setTab] = useState<"add" | "offer">("add");
 
-  const updateField = (key: string, value: any) => setForm((f: any) => ({ ...f, [key]: value }));
+  // ── Форма заведения ─────────────────────────────────────────
+  const [form, setForm] = useState<VendorPlaceInput>(EMPTY);
+  const [tagsRaw, setTagsRaw] = useState("");
+  const [status, setStatus] = useState<"idle" | "loading" | "ok" | "err">("idle");
+  const [errMsg, setErrMsg] = useState("");
 
-  const canSubmit =
-    form.name.trim() &&
-    form.address.trim() &&
-    form.district.trim() &&
-    form.ambient_description.trim() &&
-    submitState !== "submitting";
+  function set<K extends keyof VendorPlaceInput>(k: K, v: VendorPlaceInput[K]) {
+    setForm((f) => ({ ...f, [k]: v }));
+  }
 
-  const handleSubmit = async () => {
-    if (!canSubmit) return;
-    setSubmitState("submitting");
-    setErrorMsg(null);
+  const canAdd =
+    form.name.trim() !== "" &&
+    form.address.trim() !== "" &&
+    form.district.trim() !== "" &&
+    form.ambient_description.trim() !== "" &&
+    status !== "loading";
 
-    const tags = tagsInput.split(",").map((tg) => tg.trim()).filter(Boolean);
-    const payload = { ...form, tags };
-
-    const idempotencyKey = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
-
+  async function handleAdd() {
+    if (!canAdd) return;
+    setStatus("loading");
+    setErrMsg("");
+    const tags = tagsRaw.split(",").map((s) => s.trim()).filter(Boolean);
     try {
-      await placesApi.upsertMine(payload, idempotencyKey);
-      setSubmitState("success");
-      setForm(EMPTY_FORM);
-      setTagsInput("");
+      const res = await placesApi.upsertMine({ ...form, tags }, genKey());
+      console.log("Saved:", res);
+      setStatus("ok");
+      setForm(EMPTY);
+      setTagsRaw("");
       refetch();
-      setTimeout(() => setSubmitState("idle"), 2500);
-    } catch (err) {
-      console.error(err);
-      setErrorMsg(err instanceof ApiError ? `${err.message} (HTTP ${err.status})` : "Ошибка сервера");
-      setSubmitState("error");
+      setTimeout(() => setStatus("idle"), 2500);
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message + " (HTTP " + e.status + ")" : "Ошибка сети";
+      console.error("Ошибка при добавлении заведения:", e);
+      setErrMsg(msg);
+      setStatus("err");
     }
-  };
+  }
 
-  const [offerTitle, setOfferTitle] = useState<string>("");
-  const [offerBonus, setOfferBonus] = useState<string>("");
-  const [offerDiscount, setOfferDiscount] = useState<string>("0");
-  const [offerState, setOfferState] = useState<string>("idle");
-  const [offerError, setOfferError] = useState<string | null>(null);
+  // ── Форма оффера ────────────────────────────────────────────
+  const [offerTitle, setOfferTitle] = useState("");
+  const [offerBonus, setOfferBonus] = useState("");
+  const [offerDisc, setOfferDisc] = useState("0");
+  const [offerStatus, setOfferStatus] = useState<"idle" | "loading" | "ok" | "err">("idle");
+  const [offerErr, setOfferErr] = useState("");
 
-  const myPlace = places && places[0];
-
-  const handleOfferSubmit = async () => {
+  async function handleOffer() {
     if (!myPlace) {
-      setOfferError("Сначала добавьте заведение");
-      setOfferState("error");
+      setOfferErr("Сначала добавьте заведение");
+      setOfferStatus("err");
       return;
     }
     if (!offerTitle.trim() || !offerBonus.trim()) return;
-
-    setOfferState("submitting");
-    setOfferError(null);
-
-    const idempotencyKey = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
-
+    setOfferStatus("loading");
+    setOfferErr("");
     try {
-      await offersApi.upsert(myPlace.id, { title: offerTitle.trim(), bonus_text: offerBonus.trim(), discount_pct: Number(offerDiscount) || 0 }, idempotencyKey);
-      setOfferState("success");
+      await offersApi.upsert(
+        myPlace.id,
+        { title: offerTitle.trim(), bonus_text: offerBonus.trim(), discount_pct: Number(offerDisc) || 0 },
+        genKey()
+      );
+      setOfferStatus("ok");
       refetch();
-      setTimeout(() => setOfferState("idle"), 2500);
-    } catch (err) {
-      console.error(err);
-      setOfferError(err instanceof ApiError ? `${err.message} (HTTP ${err.status})` : "Ошибка сервера");
-      setOfferState("error");
+      setTimeout(() => setOfferStatus("idle"), 2500);
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message + " (HTTP " + e.status + ")" : "Ошибка сети";
+      console.error("Ошибка при сохранении оффера:", e);
+      setOfferErr(msg);
+      setOfferStatus("err");
     }
-  };
+  }
 
+  // ── Render ──────────────────────────────────────────────────
   return (
-    <div style={{ flex: 1, overflowY: "auto", background: "#f9fafb", padding: "16px", fontFamily: "sans-serif" }}>
-      <div>
-        <span style={{ fontSize: "11px", fontWeight: 700, color: "#4f46e5", textTransform: "uppercase" }}>Панель Партнера</span>
-        <h2 style={{ fontWeight: 700, fontSize: "20px", color: "#111827", margin: "4px 0 16px" }}>
-          {myPlace ? myPlace.name : "Добавление заведения"}
-        </h2>
+    <div style={{ minHeight: "100%", background: C.bg, padding: 16, paddingBottom: 24, fontFamily: "var(--font-sans)" }}>
+
+      <div style={{ fontSize: 16, fontWeight: 600, color: C.text, marginBottom: 14 }}>
+        {myPlace ? myPlace.name : (t.addPlaceTitle || "Добавить заведение")}
       </div>
 
-      <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
-        <button onClick={() => setActiveTab("add")} style={{ flex: 1, padding: "10px", background: activeTab === "add" ? "#111827" : "#fff", color: activeTab === "add" ? "#fff" : "#4b5563", border: "1px solid #d1d5db", borderRadius: "8px", fontWeight: 700, cursor: "pointer" }}>
-          Профиль заведения
-        </button>
-        <button onClick={() => setActiveTab("offer")} style={{ flex: 1, padding: "10px", background: activeTab === "offer" ? "#111827" : "#fff", color: activeTab === "offer" ? "#fff" : "#4b5563", border: "1px solid #d1d5db", borderRadius: "8px", fontWeight: 700, cursor: "pointer" }}>
-          Акции и Бонусы
-        </button>
+      {/* Tabs */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
+        {(["add", "offer"] as const).map((id) => (
+          <button key={id} onClick={() => setTab(id)}
+            style={{ padding: "7px 14px", borderRadius: 8, border: "0.5px solid " + (tab === id ? C.blue : C.border2), background: tab === id ? C.blue : C.surface, color: tab === id ? "#fff" : C.muted, fontSize: 12, fontWeight: tab === id ? 600 : 400, cursor: "pointer" }}>
+            {id === "add" ? (myPlace ? t.editor : t.addPlace) : t.offers}
+          </button>
+        ))}
       </div>
 
-      {activeTab === "add" && (
-        <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", padding: "16px" }}>
-          <div style={{ marginBottom: "12px" }}>
-            <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#374151", marginBottom: "4px" }}>Название заведения *</label>
-            <input type="text" value={form.name} onChange={(e) => updateField("name", e.target.value)} style={{ width: "100%", padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px", boxSizing: "border-box" }} placeholder="Например: Surf Coffee" />
+      {/* ── ADD / EDIT ───────────────────────────────────────── */}
+      {tab === "add" && (
+        <div style={{ background: C.surface, border: "0.5px solid " + C.border2, borderRadius: 14, padding: 14 }}>
+
+          <div style={fieldWrap}>
+            <label style={labelStyle}>{t.fieldName}</label>
+            <input style={inputStyle} value={form.name} placeholder="Surf Coffee"
+              onChange={(e) => set("name", e.target.value)} />
           </div>
 
-          <div style={{ marginBottom: "12px" }}>
-            <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#374151", marginBottom: "6px" }}>Категория</label>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-              {CATEGORY_OPTIONS.map((cat) => (
-                <button key={cat} type="button" onClick={() => updateField("category", cat)} style={{ padding: "6px 12px", borderRadius: "20px", border: `1.5px solid ${form.category === cat ? "#111827" : "#e5e7eb"}`, background: form.category === cat ? "#111827" : "#fff", color: form.category === cat ? "#fff" : "#4b5563", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>
-                  {cat}
-                </button>
-              ))}
+          <div style={fieldWrap}>
+            <label style={labelStyle}>{t.fieldCat}</label>
+            <select style={{ ...inputStyle, appearance: "auto" }}
+              value={form.category}
+              onChange={(e) => set("category", e.target.value as VendorPlaceInput["category"])}>
+              {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+
+          <div style={fieldWrap}>
+            <label style={labelStyle}>{t.fieldAddr}</label>
+            <input style={inputStyle} value={form.address} placeholder="пр. Кабанбай батыра, 11"
+              onChange={(e) => set("address", e.target.value)} />
+          </div>
+
+          <div style={fieldWrap}>
+            <label style={labelStyle}>{t.fieldDist}</label>
+            <input style={inputStyle} value={form.district} placeholder="Есіл"
+              onChange={(e) => set("district", e.target.value)} />
+          </div>
+
+          <div style={fieldWrap}>
+            <label style={labelStyle}>{t.fieldDesc}</label>
+            <textarea style={{ ...inputStyle, resize: "vertical" }} rows={3}
+              value={form.ambient_description}
+              placeholder="Тихая кофейня с розетками, specialty кофе..."
+              onChange={(e) => set("ambient_description", e.target.value)} />
+          </div>
+
+          <div style={fieldWrap}>
+            <label style={labelStyle}>{t.tagsLabel}</label>
+            <input style={inputStyle} value={tagsRaw} placeholder="wifi, розетки, тихо, кофе"
+              onChange={(e) => setTagsRaw(e.target.value)} />
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div style={fieldWrap}>
+              <label style={labelStyle}>{t.fieldLat}</label>
+              <input style={inputStyle} type="number" value={form.lat ?? ""}
+                placeholder="51.1282"
+                onChange={(e) => set("lat", e.target.value ? Number(e.target.value) : null)} />
+            </div>
+            <div style={fieldWrap}>
+              <label style={labelStyle}>{t.fieldLng}</label>
+              <input style={inputStyle} type="number" value={form.lng ?? ""}
+                placeholder="71.4314"
+                onChange={(e) => set("lng", e.target.value ? Number(e.target.value) : null)} />
             </div>
           </div>
 
-          <div style={{ marginBottom: "12px" }}>
-            <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#374151", marginBottom: "4px" }}>Адрес *</label>
-            <input type="text" value={form.address} onChange={(e) => updateField("address", e.target.value)} style={{ width: "100%", padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px", boxSizing: "border-box" }} placeholder="пр. Кабанбай батыра, 11" />
+          <div style={fieldWrap}>
+            <label style={labelStyle}>{t.fieldGis}</label>
+            <input style={inputStyle} value={form.two_gis_url ?? ""}
+              placeholder="https://2gis.kz/astana/..."
+              onChange={(e) => set("two_gis_url", e.target.value)} />
           </div>
 
-          <div style={{ marginBottom: "12px" }}>
-            <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#374151", marginBottom: "4px" }}>Район *</label>
-            <input type="text" value={form.district} onChange={(e) => updateField("district", e.target.value)} style={{ width: "100%", padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px", boxSizing: "border-box" }} placeholder="Есіл" />
+          <div style={fieldWrap}>
+            <label style={labelStyle}>{t.fieldCheck}</label>
+            <input style={inputStyle} type="number" value={form.avg_check_kzt ?? ""}
+              placeholder="2500"
+              onChange={(e) => set("avg_check_kzt", e.target.value ? Number(e.target.value) : null)} />
           </div>
 
-          <div style={{ marginBottom: "12px" }}>
-            <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#374151", marginBottom: "4px" }}>Описание атмосферы *</label>
-            <textarea value={form.ambient_description} onChange={(e) => updateField("ambient_description", e.target.value)} style={{ width: "100%", padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px", boxSizing: "border-box" }} placeholder="Тихая уютная кофейня..." />
-          </div>
-
-          <div style={{ marginBottom: "12px" }}>
-            <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#374151", marginBottom: "4px" }}>Теги (через запятую)</label>
-            <input type="text" value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} style={{ width: "100%", padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px", boxSizing: "border-box" }} placeholder="wifi, розетки, кофе" />
-          </div>
-
-          <div style={{ display: "flex", gap: "12px", marginBottom: "12px" }}>
-            <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", color: "#374151" }}>
-              <input type="checkbox" checked={form.has_wifi} onChange={(e) => updateField("has_wifi", e.target.checked)} /> Есть Wi-Fi
+          <div style={{ display: "flex", gap: 20, marginBottom: 14 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: C.muted, cursor: "pointer" }}>
+              <input type="checkbox" checked={form.has_wifi}
+                onChange={(e) => set("has_wifi", e.target.checked)} />
+              {t.fieldWifi}
             </label>
-            <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", color: "#374151" }}>
-              <input type="checkbox" checked={form.has_outlets} onChange={(e) => updateField("has_outlets", e.target.checked)} /> Есть розетки
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: C.muted, cursor: "pointer" }}>
+              <input type="checkbox" checked={form.has_outlets}
+                onChange={(e) => set("has_outlets", e.target.checked)} />
+              {t.fieldOutlets}
             </label>
           </div>
 
-          <div style={{ marginBottom: "16px" }}>
-            <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#374151", marginBottom: "4px" }}>Ссылка на 2GIS</label>
-            <input type="text" value={form.two_gis_url} onChange={(e) => updateField("two_gis_url", e.target.value)} style={{ width: "100%", padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px", boxSizing: "border-box" }} placeholder="https://2gis.kz/astana/..." />
-          </div>
-
-          {submitState === "error" && (
-            <div style={{ color: "#ef4444", background: "#fef2f2", padding: "10px", borderRadius: "6px", fontSize: "12px", marginBottom: "12px" }}>{errorMsg}</div>
+          {status === "err" && (
+            <div style={{ color: C.red, background: C.redBg, border: "0.5px solid " + C.red + "44", borderRadius: 8, padding: "9px 12px", fontSize: 12, marginBottom: 12 }}>
+              {errMsg}
+            </div>
           )}
 
-          <button type="button" onClick={handleSubmit} disabled={!canSubmit} style={{ width: "100%", padding: "12px", background: submitState === "success" ? "#10b981" : "#111827", color: "#fff", border: "none", borderRadius: "8px", fontWeight: 700, cursor: canSubmit ? "pointer" : "not-allowed", opacity: canSubmit ? 1 : 0.6 }}>
-            {submitState === "submitting" ? "Сохранение..." : submitState === "success" ? "Успешно сохранено! 🎉" : "Сохранить заведение"}
+          <button
+            onClick={handleAdd}
+            disabled={!canAdd}
+            style={{ width: "100%", padding: "11px", borderRadius: 8, border: "none", background: !canAdd ? C.bg : status === "ok" ? C.green : C.blue, color: !canAdd ? C.hint : "#fff", fontSize: 13, fontWeight: 600, cursor: !canAdd ? "default" : "pointer" }}>
+            {status === "loading" ? t.submitting : status === "ok" ? t.added : t.submit}
           </button>
+
         </div>
       )}
 
-      {activeTab === "offer" && (
-        <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", padding: "16px" }}>
-          <div style={{ marginBottom: "12px" }}>
-            <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#374151", marginBottom: "4px" }}>Заголовок предложения</label>
-            <input type="text" value={offerTitle} onChange={(e) => setOfferTitle(e.target.value)} style={{ width: "100%", padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px", boxSizing: "border-box" }} placeholder="Капучино за 700 ₸ при первом посещении" />
-          </div>
-          <div style={{ marginBottom: "12px" }}>
-            <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#374151", marginBottom: "4px" }}>Условия (текст бонуса)</label>
-            <input type="text" value={offerBonus} onChange={(e) => setOfferBonus(e.target.value)} style={{ width: "100%", padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px", boxSizing: "border-box" }} placeholder="Покажите этот экран бариста" />
-          </div>
-          <div style={{ marginBottom: "16px" }}>
-            <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#374151", marginBottom: "4px" }}>Размер скидки (%)</label>
-            <input type="number" value={offerDiscount} onChange={(e) => setOfferDiscount(e.target.value)} style={{ width: "100%", padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px", boxSizing: "border-box" }} />
+      {/* ── OFFER ────────────────────────────────────────────── */}
+      {tab === "offer" && (
+        <div style={{ background: C.surface, border: "0.5px solid " + C.border2, borderRadius: 14, padding: 14 }}>
+
+          <div style={fieldWrap}>
+            <label style={labelStyle}>{t.offerTitle}</label>
+            <input style={inputStyle} value={offerTitle}
+              placeholder="Капучино за 700 ₸"
+              onChange={(e) => setOfferTitle(e.target.value)} />
           </div>
 
-          {offerState === "error" && (
-            <div style={{ color: "#ef4444", background: "#fef2f2", padding: "10px", borderRadius: "6px", fontSize: "12px", marginBottom: "12px" }}>{offerError}</div>
+          <div style={fieldWrap}>
+            <label style={labelStyle}>{t.bonusText}</label>
+            <input style={inputStyle} value={offerBonus}
+              placeholder="Покажи экран — капучино в подарок"
+              onChange={(e) => setOfferBonus(e.target.value)} />
+          </div>
+
+          <div style={fieldWrap}>
+            <label style={labelStyle}>{t.discountPct}</label>
+            <input style={inputStyle} type="number" value={offerDisc}
+              onChange={(e) => setOfferDisc(e.target.value)} />
+          </div>
+
+          {offerStatus === "err" && (
+            <div style={{ color: C.red, background: C.redBg, border: "0.5px solid " + C.red + "44", borderRadius: 8, padding: "9px 12px", fontSize: 12, marginBottom: 12 }}>
+              {offerErr}
+            </div>
           )}
 
-          <button type="button" onClick={handleOfferSubmit} disabled={!offerTitle.trim() || !offerBonus.trim() || offerState === "submitting"} style={{ width: "100%", padding: "12px", background: offerState === "success" ? "#10b981" : "#111827", color: "#fff", border: "none", borderRadius: "8px", fontWeight: 700, cursor: "pointer" }}>
-            {offerState === "submitting" ? "Активация..." : offerState === "success" ? "Акция активирована! 🚀" : "Активировать акцию"}
+          <button
+            onClick={handleOffer}
+            disabled={!offerTitle.trim() || !offerBonus.trim() || offerStatus === "loading"}
+            style={{ width: "100%", padding: "11px", borderRadius: 8, border: "none", background: offerStatus === "ok" ? C.green : C.blue, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+            {offerStatus === "loading" ? "..." : offerStatus === "ok" ? t.activated : t.activate}
           </button>
+
         </div>
       )}
     </div>
