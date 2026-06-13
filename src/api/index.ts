@@ -75,16 +75,22 @@ export class ApiError extends Error {
 async function req<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = localStorage.getItem("vizit_token");
 
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
+  // Инициализируем Headers (если в options уже были заголовки, они скопируются сюда)
+  const headers = new Headers(options.headers);
+
+  // Явно проставляем Content-Type, если он еще не был задан
+  if (!headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  // Если токен есть в localStorage, жестко пишем его в Authorization
   if (token) {
-    headers["Authorization"] = "Bearer " + token;
+    headers.set("Authorization", `Bearer ${token}`);
   }
 
   const res = await fetch(API_BASE + path, {
     ...options,
-    headers: { ...headers, ...(options.headers as Record<string, string> || {}) },
+    headers, // Передаем валидный объект Headers напрямую в fetch
   });
 
   if (!res.ok) {
