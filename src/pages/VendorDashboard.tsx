@@ -151,8 +151,7 @@ export function VendorDashboard({ t }: Props) {
 
   // ── Render ──────────────────────────────────────────────────
   return (
-    <div style={{ minHeight: "100%", background: C.bg, padding: 16, paddingBottom: 24, fontFamily: "var(--font-sans)" }}>
-
+  <div style={{ height: "calc(100vh - 60px)", overflowY: "auto", background: C.bg, padding: 16, paddingBottom: 120, fontFamily: "var(--font-sans)", boxSizing: "border-box" }}>
       <div style={{ fontSize: 16, fontWeight: 600, color: C.text, marginBottom: 14 }}>
         {myPlace ? myPlace.name : (t.addPlaceTitle || "Добавить заведение")}
       </div>
