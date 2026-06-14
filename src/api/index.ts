@@ -135,7 +135,7 @@ export const placesApi = {
       extraHeaders["X-Idempotency-Key"] = idempotencyKey;
     }
     return req("/api/v1/vendor/place/", {
-      method: "POST",
+      method: "PUT",
       body: JSON.stringify(data),
       headers: extraHeaders,
     });
