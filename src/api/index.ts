@@ -85,15 +85,16 @@ async function req<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   // 3. Если токен есть — ЖЕСТКО вшиваем его, никто его уже не сотрет
   if (token) {
-    headers.set("Authorization", "Bearer " + token);
+    headers.set("Authorization", "Bearer " + token.trim());
   } else {
-    console.warn("⚠️ Токен 'vizit_token' не найден в localStorage!");
+    console.error("❌ КРИТИЧЕСКАЯ ОШИБКА: Токен 'vizit_token' НЕ НАЙДЕН в localStorage!");
   }
 
-  // 4. Передаем headers напрямую в fetch
+  // 4. Передаем headers напрямую в fetch с поддержкой CORS
   const res = await fetch(API_BASE + path, {
+    mode: "cors", // Явно указываем CORS режим
     ...options,
-    headers: headers, // Передаем объект Headers напрямую
+    headers: headers, 
   });
 
   if (!res.ok) {
@@ -128,7 +129,6 @@ export const placesApi = {
     }),
 
   // POST /api/v1/vendor/place — создать или обновить своё заведение
-  // Требует JWT с ролью VENDOR в localStorage("vizit_token")
   upsertMine: (data: VendorPlaceInput, idempotencyKey?: string): Promise<{ status: string; place_id: string }> => {
     const extraHeaders: Record<string, string> = {};
     if (idempotencyKey) {
