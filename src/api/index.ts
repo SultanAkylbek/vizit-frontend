@@ -1,4 +1,3 @@
-// src/api/index.ts
 const API_BASE = "https://vizit-backend-vdt2.onrender.com";
 
 export interface Place {
@@ -52,21 +51,36 @@ export class ApiError extends Error {
 
 async function req<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = localStorage.getItem("vizit_token");
-  const headers = new Headers(options.headers);
+  
+  // Создаем чистый объект заголовков
+  const headers = new Headers();
 
+  // Если с формы пришли дополнительные заголовки (например, X-Idempotency-Key), копируем их сюда
+  if (options.headers) {
+    const inputHeaders = new Headers(options.headers);
+    inputHeaders.forEach((value, key) => {
+      headers.set(key, value);
+    });
+  }
+
+  // Жестко ставим тип контента, если его нет
   if (!headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
 
+  // Жестко вшиваем токен, если он есть в localStorage
   if (token) {
     headers.set("Authorization", "Bearer " + token.trim());
   }
 
-  const res = await fetch(API_BASE + path, {
-    mode: "cors",
+  // Копируем все опции, но заменяем headers на наш объединенный список
+  const fetchOptions: RequestInit = {
     ...options,
-    headers,
-  });
+    mode: "cors",
+    headers: headers
+  };
+
+  const res = await fetch(API_BASE + path, fetchOptions);
 
   if (!res.ok) {
     let message = "Server error";
