@@ -1,7 +1,3 @@
-// Пытаемся импортировать supabase, если Lovable его создал. 
-// Если вылезет ошибка сборки, мы подстрахуемся чистым localStorage.
-import { createClient } from '@supabase/supabase-token-v3' // ИИ сборщики часто используют обертки, но мы сделаем проще:
-
 const API_BASE = "https://vizit-backend-vdt2.onrender.com";
 
 export interface Place {
@@ -57,12 +53,12 @@ async function req<T>(path: string, options: RequestInit = {}): Promise<T> {
   // 1. Проверяем твой прямой токен
   let token = localStorage.getItem("vizit_token");
 
-  // 2. БРОНЕБОЙНЫЙ АВТОПОДБОР: если vizit_token нет, выковыриваем JWT из системных хранилищ Supabase
+  // 2. АВТОПОДБОР: выковыриваем JWT из системных хранилищ Supabase
   if (!token) {
     try {
       const keys = Object.keys(localStorage);
       
-      // Ищем любую строку, похожую на сохраненную сессию Supabase
+      // Ищем строку сессии Supabase
       const sbKey = keys.find(key => key.startsWith("sb-") && key.endsWith("-auth-token"));
       
       if (sbKey) {
@@ -73,7 +69,7 @@ async function req<T>(path: string, options: RequestInit = {}): Promise<T> {
         }
       }
       
-      // Если все еще нет, ищем в альтернативных ключах, которые создает Lovable / Vite
+      // Ищем в альтернативных ключах
       if (!token) {
         const fallbackKey = keys.find(key => key.includes("supabase.auth.token") || key.includes("supabase_session"));
         if (fallbackKey) {
@@ -84,9 +80,7 @@ async function req<T>(path: string, options: RequestInit = {}): Promise<T> {
           }
         }
       }
-    } catch (_) {
-      // Спокойно глушим ошибки парсинга, чтобы билд не падал
-    }
+    } catch (_) {}
   }
 
   const headers = new Headers();
@@ -102,7 +96,6 @@ async function req<T>(path: string, options: RequestInit = {}): Promise<T> {
     headers.set("Content-Type", "application/json");
   }
 
-  // Если токен нашли — крепим его. Если нет — бэк выдаст 401, но билд хотя бы соберется
   if (token) {
     headers.set("Authorization", "Bearer " + token.trim());
   }
