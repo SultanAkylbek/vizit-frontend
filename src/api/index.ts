@@ -50,22 +50,11 @@ export class ApiError extends Error {
 }
 
 async function req<T>(path: string, options: RequestInit = {}): Promise<T> {
-  let token: string | null = localStorage.getItem("vizit_token");
-  
+  // Строго берем токен, который ДОЛЖЕН был сохраниться при логине
+  const token = localStorage.getItem("vizit_token");
+
   if (!token) {
-    try {
-      const keys = Object.keys(localStorage);
-      const sbKey = keys.find(key => key.startsWith("sb-") && key.endsWith("-auth-token"));
-      if (sbKey) {
-        const sbData = localStorage.getItem(sbKey);
-        if (sbData) {
-          const parsed = JSON.parse(sbData);
-          if (parsed && typeof parsed === "object" && "access_token" in parsed) {
-            token = parsed.access_token as string;
-          }
-        }
-      }
-    } catch (_) {}
+    throw new ApiError(401, "Токен авторизации не найден. Пожалуйста, перезайдите в аккаунт.");
   }
 
   const headers = new Headers();
@@ -81,9 +70,7 @@ async function req<T>(path: string, options: RequestInit = {}): Promise<T> {
     headers.set("Content-Type", "application/json");
   }
 
-  if (token) {
-    headers.set("Authorization", "Bearer " + token.trim());
-  }
+  headers.set("Authorization", "Bearer " + token.trim());
 
   const fetchOptions: RequestInit = {
     ...options,
@@ -106,7 +93,6 @@ async function req<T>(path: string, options: RequestInit = {}): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-// ── ТВОЙ API ДЛЯ МСБ ──
 export const placesApi = {
   list: (): Promise<Place[]> => req("/api/v1/places"),
 
@@ -129,10 +115,8 @@ export const placesApi = {
   },
 };
 
-// ── ДОБАВЛЕННЫЙ OFFERS_API, ИЗ-ЗА КОТОРОГО ПАДАЛ СБОРЩИК ──
 export const offersApi = {
   listMine: (): Promise<any[]> => req("/api/v1/vendor/offers"),
   create: (data: any): Promise<any> => req("/api/v1/vendor/offers", { method: "POST", body: JSON.stringify(data) }),
   delete: (id: string): Promise<any> => req(`/api/v1/vendor/offers/${id}`, { method: "DELETE" })
 };
-      
