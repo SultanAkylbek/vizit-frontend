@@ -50,12 +50,39 @@ export class ApiError extends Error {
 }
 
 async function req<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = localStorage.getItem("vizit_token");
+  // 1. Сначала пытаемся взять токен из твоего localStorage
+  let token = localStorage.getItem("vizit_token");
   
-  // Создаем чистый объект заголовков
+  // 2. УНИВЕРСАЛЬНЫЙ ФИКС: Если там пусто, ищем токен, который Supabase оставляет автоматически
+  if (!token) {
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        // Supabase сохраняет ключи с префиксом "sb-"
+        if (key && key.startsWith("sb-") && key.endsWith("-auth-token")) {
+          const sbData = localStorage.getItem(key);
+          if (sbData) {
+            const parsed = JSON.parse(sbData);
+            token = parsed?.access_token || null;
+            if (token) {
+              console.log("ℹ️ Подстраховка: токен успешно взят из хранилища Supabase");
+              break;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error("Ошибка автоподбора токена Supabase:", e);
+    }
+  }
+
+  // Если токена вообще нигде нет — пишем предупреждение в консоль, но запрос не блокируем
+  if (!token) {
+    console.warn("⚠️ Предупреждение: Токен авторизации не найден ни в vizit_token, ни в Supabase. Запрос уйдет пустым.");
+  }
+
   const headers = new Headers();
 
-  // Если с формы пришли дополнительные заголовки (например, X-Idempotency-Key), копируем их сюда
   if (options.headers) {
     const inputHeaders = new Headers(options.headers);
     inputHeaders.forEach((value, key) => {
@@ -63,17 +90,14 @@ async function req<T>(path: string, options: RequestInit = {}): Promise<T> {
     });
   }
 
-  // Жестко ставим тип контента, если его нет
   if (!headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
 
-  // Жестко вшиваем токен, если он есть в localStorage
   if (token) {
     headers.set("Authorization", "Bearer " + token.trim());
   }
 
-  // Копируем все опции, но заменяем headers на наш объединенный список
   const fetchOptions: RequestInit = {
     ...options,
     mode: "cors",
