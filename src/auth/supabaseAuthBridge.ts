@@ -29,7 +29,7 @@ function getSupabaseConfig() {
   return {
     url: "https://yxypdewnhpclawdsjhed.supabase.co",
     // Сюда я вставил твой реальный anon_key, который ты нашел в настройках API
-    anonKey: "ВСТАВЬ_СЮДА_СВОЙ_ДЛИННЫЙ_ANON_KEY", 
+    anonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl4eXBkZXduaHBjbGF3ZHNqaGVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1MDE5OTAsImV4cCI6MjA5NDA3Nzk5MH0.sVqN8BlrjybDJk1yKTlvSQz4NEwMNITvi0o8x_9Ec-w", 
   };
 }
 
