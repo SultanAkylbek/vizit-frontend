@@ -52,7 +52,6 @@ export class ApiError extends Error {
 async function req<T>(path: string, options: RequestInit = {}): Promise<T> {
   let token: string | null = localStorage.getItem("vizit_token");
   
-  // Безопасный и простой автоподбор токена Supabase, который не пугает компилятор Vercel
   if (!token) {
     try {
       const keys = Object.keys(localStorage);
@@ -66,14 +65,11 @@ async function req<T>(path: string, options: RequestInit = {}): Promise<T> {
           }
         }
       }
-    } catch (_) {
-      // Игнорируем любые ошибки парсинга, чтобы не ломать билд
-    }
+    } catch (_) {}
   }
 
   const headers = new Headers();
 
-  // Безопасное копирование кастомных заголовков (например, X-Idempotency-Key)
   if (options.headers) {
     const inputHeaders = new Headers(options.headers);
     inputHeaders.forEach((value, key) => {
@@ -110,6 +106,7 @@ async function req<T>(path: string, options: RequestInit = {}): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+// ── ТВОЙ API ДЛЯ МСБ ──
 export const placesApi = {
   list: (): Promise<Place[]> => req("/api/v1/places"),
 
@@ -131,3 +128,11 @@ export const placesApi = {
     });
   },
 };
+
+// ── ДОБАВЛЕННЫЙ OFFERS_API, ИЗ-ЗА КОТОРОГО ПАДАЛ СБОРЩИК ──
+export const offersApi = {
+  listMine: (): Promise<any[]> => req("/api/v1/vendor/offers"),
+  create: (data: any): Promise<any> => req("/api/v1/vendor/offers", { method: "POST", body: JSON.stringify(data) }),
+  delete: (id: string): Promise<any> => req(`/api/v1/vendor/offers/${id}`, { method: "DELETE" })
+};
+      
