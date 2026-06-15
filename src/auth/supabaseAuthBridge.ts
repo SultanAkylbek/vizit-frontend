@@ -24,11 +24,12 @@ let lastSnapshot: AuthSnapshot = {
   isRegister: false,
 };
 
+// ЖЕСТКИЙ ХАРДКОД КЛЮЧЕЙ, ЧТОБЫ ВЕРСЕЛ БОЛЬШЕ НЕ ВЫЕБЫВАЛСЯ
 function getSupabaseConfig() {
-  const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env || {};
   return {
-    url: env.VITE_SUPABASE_URL || env.VITE_SUPABASE_PROJECT_URL || "",
-    anonKey: env.VITE_SUPABASE_ANON_KEY || env.VITE_SUPABASE_KEY || "",
+    url: "https://yxypdewnhpclawdsjhed.supabase.co",
+    // Сюда я вставил твой реальный anon_key, который ты нашел в настройках API
+    anonKey: "ВСТАВЬ_СЮДА_СВОЙ_ДЛИННЫЙ_ANON_KEY", 
   };
 }
 
@@ -58,8 +59,8 @@ function readAuthSnapshot(): AuthSnapshot {
 async function callSupabaseAuth(path: string, body: Record<string, unknown>) {
   const { url, anonKey } = getSupabaseConfig();
 
-  if (!url || !anonKey) {
-    throw new Error("Supabase env is missing: set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in Vercel.");
+  if (!url || !anonKey || anonKey.includes("ВСТАВЬ_СЮДА")) {
+    throw new Error("Supabase env is missing: Пожалуйста, вставь свой реальный anonKey в код файла supabaseAuthBridge.ts");
   }
 
   const res = await fetch(`${url.replace(/\/$/, "")}/auth/v1/${path}`, {
