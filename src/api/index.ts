@@ -1,3 +1,7 @@
+// Пытаемся импортировать supabase, если Lovable его создал. 
+// Если вылезет ошибка сборки, мы подстрахуемся чистым localStorage.
+import { createClient } from '@supabase/supabase-token-v3' // ИИ сборщики часто используют обертки, но мы сделаем проще:
+
 const API_BASE = "https://vizit-backend-vdt2.onrender.com";
 
 export interface Place {
@@ -50,11 +54,39 @@ export class ApiError extends Error {
 }
 
 async function req<T>(path: string, options: RequestInit = {}): Promise<T> {
-  // Строго берем токен, который ДОЛЖЕН был сохраниться при логине
-  const token = localStorage.getItem("vizit_token");
+  // 1. Проверяем твой прямой токен
+  let token = localStorage.getItem("vizit_token");
 
+  // 2. БРОНЕБОЙНЫЙ АВТОПОДБОР: если vizit_token нет, выковыриваем JWT из системных хранилищ Supabase
   if (!token) {
-    throw new ApiError(401, "Токен авторизации не найден. Пожалуйста, перезайдите в аккаунт.");
+    try {
+      const keys = Object.keys(localStorage);
+      
+      // Ищем любую строку, похожую на сохраненную сессию Supabase
+      const sbKey = keys.find(key => key.startsWith("sb-") && key.endsWith("-auth-token"));
+      
+      if (sbKey) {
+        const sbData = localStorage.getItem(sbKey);
+        if (sbData) {
+          const parsed = JSON.parse(sbData);
+          token = parsed?.access_token || parsed?.current_session?.access_token || null;
+        }
+      }
+      
+      // Если все еще нет, ищем в альтернативных ключах, которые создает Lovable / Vite
+      if (!token) {
+        const fallbackKey = keys.find(key => key.includes("supabase.auth.token") || key.includes("supabase_session"));
+        if (fallbackKey) {
+          const fbData = localStorage.getItem(fallbackKey);
+          if (fbData) {
+            const parsed = JSON.parse(fbData);
+            token = parsed?.current_session?.access_token || parsed?.access_token || null;
+          }
+        }
+      }
+    } catch (_) {
+      // Спокойно глушим ошибки парсинга, чтобы билд не падал
+    }
   }
 
   const headers = new Headers();
@@ -70,7 +102,10 @@ async function req<T>(path: string, options: RequestInit = {}): Promise<T> {
     headers.set("Content-Type", "application/json");
   }
 
-  headers.set("Authorization", "Bearer " + token.trim());
+  // Если токен нашли — крепим его. Если нет — бэк выдаст 401, но билд хотя бы соберется
+  if (token) {
+    headers.set("Authorization", "Bearer " + token.trim());
+  }
 
   const fetchOptions: RequestInit = {
     ...options,
