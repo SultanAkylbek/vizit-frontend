@@ -1,0 +1,21 @@
+User-agent: *
+Allow: /
+Allow: /place/
+
+User-agent: GPTBot
+Allow: /
+Allow: /place/
+
+User-agent: ClaudeBot
+Allow: /
+Allow: /place/
+
+User-agent: PerplexityBot
+Allow: /
+Allow: /place/
+
+User-agent: Google-Extended
+Allow: /
+Allow: /place/
+
+Sitemap: https://vizit-backend-vdt2.onrender.com/sitemap.xml
