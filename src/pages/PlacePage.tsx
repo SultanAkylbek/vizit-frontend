@@ -54,7 +54,7 @@ export function PlacePage({ slug }: { slug: string }) {
     setLoading(true);
     setErrorMsg(null);
 
-    const targetUrl = `${API_BASE}/api/v1/places/${encodeURIComponent(slug)}`;
+    const targetUrl = `${API_BASE}/api/v1/places/${encodeURIComponent(slug)}/`;
     console.log("Fetching from:", targetUrl);
 
     fetch(targetUrl)
