@@ -1,16 +1,12 @@
 // src/pages/PlacePage.tsx
 // Публичная страница заведения. ДОСТУПНА БЕЗ АВТОРИЗАЦИИ.
-// Критично для краулеров (GPTBot, ClaudeBot, Googlebot, PerplexityBot):
-// весь текстовый контент рендерится сразу в первый проход — никаких
-// долгих async-хуков между mount и появлением текста в DOM.
+// Критично для краулеров (GPTBot, ClaudeBot, Googlebot, PerplexityBot).
 
 import { useEffect, useState } from "react";
 import type { Place } from "../api/index";
 
 const API_BASE = "https://vizit-backend-vdt2.onrender.com";
 
-// ── Категория → Schema.org @type ───────────────────────────────
-// LLM/Google понимают точный тип лучше чем generic LocalBusiness
 function schemaType(category: string): string {
   const map: Record<string, string> = {
     cafe: "CafeOrCoffeeShop",
@@ -22,15 +18,12 @@ function schemaType(category: string): string {
   return map[category] || "LocalBusiness";
 }
 
-// ── Строим JSON-LD объект ───────────────────────────────────────
 function buildJsonLd(place: Place, slug: string) {
   const jsonLd: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": schemaType(place.category),
     name: place.name,
-    description:
-      place.ambient_description ||
-      `${place.name} — ${place.category} в районе ${place.district}, Астана`,
+    description: place.ambient_description || `${place.name} — ${place.category} в районе ${place.district}, Астана`,
     address: {
       "@type": "PostalAddress",
       streetAddress: place.address,
@@ -41,55 +34,25 @@ function buildJsonLd(place: Place, slug: string) {
   };
 
   if (place.lat && place.lng) {
-    jsonLd.geo = {
-      "@type": "GeoCoordinates",
-      latitude: place.lat,
-      longitude: place.lng,
-    };
+    jsonLd.geo = { "@type": "GeoCoordinates", latitude: place.lat, longitude: place.lng };
   }
-
   if (place.tags && place.tags.length > 0) {
     jsonLd.keywords = place.tags.join(", ");
   }
-
   if (place.avg_check_kzt) {
     jsonLd.priceRange = `~${place.avg_check_kzt} ₸`;
   }
-
   if (place.two_gis_url) {
     jsonLd.hasMap = place.two_gis_url;
   }
-
-  const amenities: Record<string, unknown>[] = [];
-  if (place.has_wifi) {
-    amenities.push({ "@type": "LocationFeatureSpecification", name: "WiFi", value: true });
-  }
-  if (place.has_outlets) {
-    amenities.push({ "@type": "LocationFeatureSpecification", name: "Power outlets", value: true });
-  }
-  if (amenities.length > 0) {
-    jsonLd.amenityFeature = amenities;
-  }
-
-  if (place.is_verified) {
-    jsonLd.review = {
-      "@type": "Review",
-      reviewBody: "Verified by VIZIT AI",
-    };
-  }
-
   return jsonLd;
 }
 
-// ── Вставка/обновление <head> метатегов и JSON-LD ────────────────
 function useHeadTags(place: Place | null, slug: string) {
   useEffect(() => {
     if (!place) return;
-
     const title = `${place.name} — ${place.category} в Астане | VIZIT AI`;
-    const description =
-      place.ambient_description ||
-      `${place.name}: ${place.address}, ${place.district}. Узнайте больше на VIZIT AI.`;
+    const description = place.ambient_description || `${place.name}: ${place.address}, ${place.district}.`;
 
     document.title = title;
 
@@ -106,7 +69,6 @@ function useHeadTags(place: Place | null, slug: string) {
     setMeta("name", "description", description);
     setMeta("property", "og:title", title);
     setMeta("property", "og:description", description);
-    setMeta("property", "og:type", "website");
     setMeta("property", "og:url", `https://vizit-ai.vercel.app/place/${slug}`);
 
     let script = document.getElementById("place-jsonld") as HTMLScriptElement | null;
@@ -120,160 +82,89 @@ function useHeadTags(place: Place | null, slug: string) {
   }, [place, slug]);
 }
 
-// ── Отладочная информация при неудачном запросе ──────────────
-// Показывается на экране вместо немой "Заведение не найдено",
-// чтобы сразу видеть какой URL/статус подвели, без похода в DevTools.
 interface FetchDebugInfo {
   primaryUrl: string;
-  primaryStatus: number | "network_error";
-  fallbackTried: boolean;
-  fallbackUrl?: string;
-  fallbackStatus?: number | "network_error";
+  primaryStatus: string;
+  fallbackUrl: string;
+  fallbackStatus: string;
 }
 
-// ── Получение заведения по slug напрямую (без авторизации) ──────
-function usePlaceBySlug(slug: string) {
+export function PlacePage({ slug }: { slug: string }) {
   const [place, setPlace] = useState<Place | null>(null);
-  const [notFound, setNotFound] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [debugInfo, setDebugInfo] = useState<FetchDebugInfo | null>(null);
+  const [notFound, setNotFound] = useState(false);
+  const [debug, setDebug] = useState<FetchDebugInfo | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setNotFound(false);
-    setDebugInfo(null);
 
-    // Нормализация: убираем пробелы по краям и приводим к нижнему
-    // регистру — slug в базе всегда lowercase (см. бэкенд get_place()),
-    // так что "DrinkIt " и "drinkit" должны резолвиться одинаково.
     const cleanSlug = slug.trim().toLowerCase();
+    const urlWithoutSlash = `${API_BASE}/api/v1/places/${encodeURIComponent(cleanSlug)}`;
+    const urlWithSlash = `${API_BASE}/api/v1/places/${encodeURIComponent(cleanSlug)}/`;
 
-    const primaryUrl = `${API_BASE}/api/v1/places/${encodeURIComponent(cleanSlug)}`;
-    const fallbackUrl = `${API_BASE}/api/v1/places/${encodeURIComponent(cleanSlug)}/`;
-
-    async function load() {
-      const debug: FetchDebugInfo = {
-        primaryUrl,
-        primaryStatus: "network_error",
-        fallbackTried: false,
+    async function fetchData() {
+      let currentDebug: FetchDebugInfo = {
+        primaryUrl: urlWithoutSlash,
+        primaryStatus: "Не вызывался",
+        fallbackUrl: urlWithSlash,
+        fallbackStatus: "Не вызывался"
       };
 
-      // ── Попытка 1: без слэша на конце ───────────────────────
+      // Попытка 1: Без слэша
       try {
-        const res = await fetch(primaryUrl);
-        debug.primaryStatus = res.status;
-
+        currentDebug.primaryStatus = "Запрос...";
+        const res = await fetch(urlWithoutSlash);
+        currentDebug.primaryStatus = `${res.status} ${res.statusText}`;
         if (res.ok) {
-          const data: Place = await res.json();
-          if (!cancelled) {
+          const data = await res.ok ? await res.json() : null;
+          if (data && !cancelled) {
             setPlace(data);
             setLoading(false);
+            return;
           }
-          return;
         }
-        // не ok (404 или иное) — пробуем fallback ниже
-      } catch {
-        // сетевая ошибка — primaryStatus остаётся "network_error"
+      } catch (e: any) {
+        currentDebug.primaryStatus = `Ошибка сети: ${e.message}`;
       }
 
-      // ── Попытка 2 (fallback): со слэшем на конце ────────────
-      // Бэкенд сейчас отвечает 200 на оба варианта (см. dual route
-      // registration), но это подстраховка на случай редеплоя без
-      // этого фикса или другого инстанса/прокси перед FastAPI.
-      debug.fallbackTried = true;
-      debug.fallbackUrl = fallbackUrl;
-
+      // Попытка 2: Со слэшем (Fallback)
       try {
-        const res = await fetch(fallbackUrl);
-        debug.fallbackStatus = res.status;
-
+        currentDebug.fallbackStatus = "Запрос...";
+        const res = await fetch(urlWithSlash);
+        currentDebug.fallbackStatus = `${res.status} ${res.statusText}`;
         if (res.ok) {
-          const data: Place = await res.json();
-          if (!cancelled) {
+          const data = await res.json();
+          if (data && !cancelled) {
             setPlace(data);
             setLoading(false);
+            return;
           }
-          return;
         }
-      } catch {
-        debug.fallbackStatus = "network_error";
+      } catch (e: any) {
+        currentDebug.fallbackStatus = `Ошибка сети: ${e.message}`;
       }
 
-      // Обе попытки провалились
+      // Если дошли сюда — обе попытки обосрались
       if (!cancelled) {
-        setDebugInfo(debug);
+        setDebug(currentDebug);
         setNotFound(true);
         setLoading(false);
       }
     }
 
-    load();
-
-    return () => {
-      cancelled = true;
-    };
+    fetchData();
+    return () => { cancelled = true; };
   }, [slug]);
 
-  return { place, loading, notFound, debugInfo };
-}
-
-// ── UI ────────────────────────────────────────────────────────
-const styles = {
-  page: {
-    minHeight: "100vh",
-    background: "var(--color-background-tertiary, #f5f5f3)",
-    fontFamily: "var(--font-sans, system-ui, sans-serif)",
-    padding: "24px 16px 60px",
-  },
-  back: {
-    display: "inline-block",
-    color: "#378ADD",
-    textDecoration: "none",
-    fontSize: 13,
-    marginBottom: 20,
-  },
-  card: {
-    background: "#fff",
-    border: "1px solid #e3e3e0",
-    borderRadius: 16,
-    padding: 24,
-    maxWidth: 560,
-    margin: "0 auto",
-  },
-  emoji: { fontSize: 36, marginBottom: 8 },
-  name: { fontSize: 24, fontWeight: 700, margin: "0 0 4px", color: "#1a1a1a" },
-  meta: { fontSize: 13, color: "#777", marginBottom: 16 },
-  desc: { fontSize: 15, lineHeight: 1.6, color: "#333", marginBottom: 16 },
-  tags: { display: "flex", flexWrap: "wrap" as const, gap: 6, marginBottom: 16 },
-  tag: {
-    background: "#f0f0ee",
-    borderRadius: 20,
-    padding: "4px 12px",
-    fontSize: 12,
-    color: "#555",
-  },
-  gisBtn: {
-    display: "inline-block",
-    background: "#378ADD",
-    color: "#fff",
-    padding: "10px 20px",
-    borderRadius: 8,
-    textDecoration: "none",
-    fontSize: 14,
-    fontWeight: 600,
-  },
-};
-
-export function PlacePage({ slug }: { slug: string }) {
-  const { place, loading, notFound, debugInfo } = usePlaceBySlug(slug);
   useHeadTags(place, slug);
 
   if (loading) {
     return (
-      <div style={styles.page}>
-        <div style={styles.card}>
-          <p style={{ color: "#999", textAlign: "center" }}>Загрузка...</p>
+      <div style={{ minHeight: "100vh", background: "#f5f5f3", padding: "24px 16px" }}>
+        <div style={{ background: "#fff", borderRadius: 16, padding: 24, maxWidth: 560, margin: "0 auto", textAlign: "center" }}>
+          <p style={{ color: "#999" }}>Загрузка заведения...</p>
         </div>
       </div>
     );
@@ -281,37 +172,17 @@ export function PlacePage({ slug }: { slug: string }) {
 
   if (notFound || !place) {
     return (
-      <div style={styles.page}>
-        <a href="/" style={styles.back}>← На главную</a>
-        <div style={styles.card}>
-          <p style={{ marginBottom: debugInfo ? 16 : 0 }}>Заведение не найдено.</p>
-
-          {debugInfo && (
-            <div
-              style={{
-                background: "#f7f7f5",
-                border: "1px solid #e3e3e0",
-                borderRadius: 8,
-                padding: 14,
-                fontFamily: "monospace",
-                fontSize: 12,
-                color: "#555",
-                lineHeight: 1.7,
-                wordBreak: "break-all",
-              }}
-            >
-              <div style={{ fontWeight: 700, marginBottom: 8, color: "#333" }}>
-                Debug info:
-              </div>
-              <div>→ Запрос 1: {debugInfo.primaryUrl}</div>
-              <div>→ Статус 1: {debugInfo.primaryStatus}</div>
-              <div>→ Fallback выполнен: {debugInfo.fallbackTried ? "да" : "нет"}</div>
-              {debugInfo.fallbackTried && (
-                <>
-                  <div>→ Запрос 2: {debugInfo.fallbackUrl}</div>
-                  <div>→ Статус 2: {debugInfo.fallbackStatus}</div>
-                </>
-              )}
+      <div style={{ minHeight: "100vh", background: "#f5f5f3", padding: "24px 16px" }}>
+        <div style={{ background: "#fff", border: "1px solid #e3e3e0", borderRadius: 16, padding: 24, maxWidth: 560, margin: "0 auto" }}>
+          <a href="/" style={{ color: "#378ADD", textDecoration: "none", fontSize: 13, display: "block", marginBottom: 16 }}>← На главную</a>
+          <h2 style={{ color: "#cc0000", fontSize: 20, margin: "0 0 8px" }}>Заведение не найдено</h2>
+          <p style={{ color: "#666", margin: "0 0 16px" }}>Проверьте правильность ссылки или попробуйте позже.</p>
+          
+          {debug && (
+            <div style={{ background: "#fcf8f2", border: "1px solid #f0e4d4", borderRadius: 8, padding: 12, fontFamily: "monospace", fontSize: 11, color: "#665" }}>
+              <div style={{ fontWeight: 700, marginBottom: 4 }}>Логи запросов (Отладка):</div>
+              <div>1. {debug.primaryUrl} ➡️ {debug.primaryStatus}</div>
+              <div>2. {debug.fallbackUrl} ➡️ {debug.fallbackStatus}</div>
             </div>
           )}
         </div>
@@ -320,23 +191,23 @@ export function PlacePage({ slug }: { slug: string }) {
   }
 
   return (
-    <div style={styles.page}>
-      <a href="/" style={styles.back}>← VIZIT AI</a>
-      <article style={styles.card}>
-        <div style={styles.emoji}>{place.emoji || "📍"}</div>
-        <h1 style={styles.name}>{place.name}</h1>
-        <p style={styles.meta}>
+    <div style={{ minHeight: "100vh", background: "#f5f5f3", fontFamily: "system-ui, sans-serif", padding: "24px 16px" }}>
+      <a href="/" style={{ color: "#378ADD", textDecoration: "none", fontSize: 13, display: "block", marginBottom: 16 }}>← VIZIT AI</a>
+      <article style={{ background: "#fff", border: "1px solid #e3e3e0", borderRadius: 16, padding: 24, maxWidth: 560, margin: "0 auto" }}>
+        <div style={{ fontSize: 36, marginBottom: 8 }}>{place.emoji || "📍"}</div>
+        <h1 style={{ fontSize: 24, fontWeight: 700, margin: "0 0 4px", color: "#1a1a1a" }}>{place.name}</h1>
+        <p style={{ fontSize: 13, color: "#777", marginBottom: 16 }}>
           {place.category} · {place.district} · {place.address}
         </p>
 
         {place.ambient_description && (
-          <p style={styles.desc}>{place.ambient_description}</p>
+          <p style={{ fontSize: 15, lineHeight: 1.6, color: "#333", marginBottom: 16 }}>{place.ambient_description}</p>
         )}
 
         {place.tags && place.tags.length > 0 && (
-          <div style={styles.tags}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
             {place.tags.map((tag) => (
-              <span key={tag} style={styles.tag}>{tag}</span>
+              <span key={tag} style={{ background: "#f0f0ee", borderRadius: 20, padding: "4px 12px", fontSize: 12, color: "#555" }}>{tag}</span>
             ))}
           </div>
         )}
@@ -348,7 +219,7 @@ export function PlacePage({ slug }: { slug: string }) {
         )}
 
         {place.two_gis_url && (
-          <a href={place.two_gis_url} target="_blank" rel="noreferrer" style={styles.gisBtn}>
+          <a href={place.two_gis_url} target="_blank" rel="noreferrer" style={{ display: "inline-block", background: "#378ADD", color: "#fff", padding: "10px 20px", borderRadius: 8, textDecoration: "none", fontSize: 14, fontWeight: 600 }}>
             🗺️ Открыть в 2GIS
           </a>
         )}
