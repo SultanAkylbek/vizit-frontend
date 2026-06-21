@@ -131,16 +131,23 @@ function usePlaceBySlug(slug: string) {
     setLoading(true);
     setNotFound(false);
 
-    fetch(`${API_BASE}/api/v1/places`)
-      .then((r) => r.json())
-      .then((all: Place[]) => {
-        if (cancelled) return;
-        const found = all.find((p) => p.slug === slug);
-        if (found) {
-          setPlace(found);
-        } else {
-          setNotFound(true);
+    // Запрос напрямую по slug — бэкенд сам определяет UUID это или slug
+    // и ищет в нужной колонке (см. GET /api/v1/places/{param} на бэкенде).
+    // НЕ тянем весь список (/api/v1/places), т.к. он лимитирован
+    // limit(50) и нужного заведения там может не оказаться.
+    fetch(`${API_BASE}/api/v1/places/${encodeURIComponent(slug)}`)
+      .then((r) => {
+        if (r.status === 404) {
+          throw new Error("not_found");
         }
+        if (!r.ok) {
+          throw new Error("server_error");
+        }
+        return r.json();
+      })
+      .then((data: Place) => {
+        if (cancelled) return;
+        setPlace(data);
         setLoading(false);
       })
       .catch(() => {
