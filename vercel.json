@@ -1,5 +1,16 @@
 {
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/place/:slug",
+      "destination": "/api/place"
+    },
+    {
+      "source": "/place/:slug/",
+      "destination": "/api/place"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
   ]
 }
