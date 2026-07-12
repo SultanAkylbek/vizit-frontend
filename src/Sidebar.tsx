@@ -1,17 +1,26 @@
-import { Plus, MapPin, User, ChevronUp } from "lucide-react";
+import { Plus, LayoutGrid, User, ChevronUp } from "lucide-react";
 
-export type RecentPlace = {
-  slug: string;
-  name: string;
-  category: string;
+export type Category = {
+  value: string; // matches Place.category / VendorPlaceInput.category on the backend
+  label: string;
 };
+
+// Same enum as CATEGORIES in pages/VendorDashboard.tsx, just with Russian labels for display.
+export const CATEGORIES: Category[] = [
+  { value: "cafe", label: "Кофейни" },
+  { value: "restaurant", label: "Рестораны" },
+  { value: "barbershop", label: "Барбершопы" },
+  { value: "sto", label: "СТО" },
+  { value: "gym", label: "Спортзалы" },
+  { value: "other", label: "Другое" },
+];
 
 type SidebarProps = {
   isOpen: boolean;
   onClose: () => void;
   onNewSearch: () => void;
-  onSelectPlace: (slug: string) => void;
-  recentPlaces: RecentPlace[];
+  onSelectCategory: (category: string) => void;
+  activeCategory?: string | null;
   userName?: string;
 };
 
@@ -19,8 +28,8 @@ export function Sidebar({
   isOpen,
   onClose,
   onNewSearch,
-  onSelectPlace,
-  recentPlaces,
+  onSelectCategory,
+  activeCategory,
   userName = "Гость",
 }: SidebarProps) {
   return (
@@ -56,30 +65,43 @@ export function Sidebar({
           </button>
         </div>
 
-        {/* Middle: recent places, styled like chat history */}
+        {/* Middle: real categories, styled like chat history entries.
+            No visit history exists yet, so this list is the categories themselves. */}
         <nav className="mt-4 flex-1 overflow-y-auto px-3">
           <p className="px-2 pb-1 text-xs font-medium text-white/40">
-            Недавние места
+            Категории
           </p>
           <ul className="flex flex-col gap-0.5">
-            {recentPlaces.map((place) => (
-              <li key={place.slug}>
-                <button
-                  onClick={() => {
-                    onSelectPlace(place.slug);
-                    onClose();
-                  }}
-                  className="group flex w-full items-center gap-2 rounded-lg px-2 py-2
-                             text-left text-sm text-white/80 hover:bg-white/5 transition-colors"
-                >
-                  <MapPin
-                    size={14}
-                    className="shrink-0 text-white/40 group-hover:text-white/60"
-                  />
-                  <span className="truncate">{place.name}</span>
-                </button>
-              </li>
-            ))}
+            {CATEGORIES.map((cat) => {
+              const active = activeCategory === cat.value;
+              return (
+                <li key={cat.value}>
+                  <button
+                    onClick={() => {
+                      onSelectCategory(cat.value);
+                      onClose();
+                    }}
+                    className={`
+                      group flex w-full items-center gap-2 rounded-lg px-2 py-2
+                      text-left text-sm transition-colors
+                      ${
+                        active
+                          ? "bg-white/10 text-[#ececec]"
+                          : "text-white/80 hover:bg-white/5"
+                      }
+                    `}
+                  >
+                    <LayoutGrid
+                      size={14}
+                      className={`shrink-0 ${
+                        active ? "text-white/80" : "text-white/40 group-hover:text-white/60"
+                      }`}
+                    />
+                    <span className="truncate">{cat.label}</span>
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         </nav>
 
