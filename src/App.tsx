@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ArrowUp } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { Layout } from "./components/Layout";
+import { Layout } from "./Layout";
 
 const SUGGESTIONS = [
   "Где поработать с ноутбуком?",
