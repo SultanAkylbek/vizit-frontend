@@ -1,19 +1,10 @@
 import { Plus, LayoutGrid, User, ChevronUp } from "lucide-react";
+import { CATEGORIES } from "./App"; // Импортируем массив напрямую из App, чтобы Vite не ругался на MISSING_EXPORT
 
 export type Category = {
-  value: string; // matches Place.category / VendorPlaceInput.category on the backend
+  value: string; // совпадает с Place.category / VendorPlaceInput.category на бэкенде
   label: string;
 };
-
-// Same enum as CATEGORIES in pages/VendorDashboard.tsx, just with Russian labels for display.
-export const CATEGORIES: Category[] = [
-  { value: "cafe", label: "Кофейни" },
-  { value: "restaurant", label: "Рестораны" },
-  { value: "barbershop", label: "Барбершопы" },
-  { value: "sto", label: "СТО" },
-  { value: "gym", label: "Спортзалы" },
-  { value: "other", label: "Другое" },
-];
 
 type SidebarProps = {
   isOpen: boolean;
@@ -65,8 +56,7 @@ export function Sidebar({
           </button>
         </div>
 
-        {/* Middle: real categories, styled like chat history entries.
-            No visit history exists yet, so this list is the categories themselves. */}
+        {/* Middle: реальные категории заведений, импортированные из App.tsx */}
         <nav className="mt-4 flex-1 overflow-y-auto px-3">
           <p className="px-2 pb-1 text-xs font-medium text-white/40">
             Категории
