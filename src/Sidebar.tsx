@@ -1,113 +1,34 @@
-import { Plus, LayoutGrid, User, ChevronUp } from "lucide-react";
-import { CATEGORIES } from "./App"; // Импортируем массив напрямую из App, чтобы Vite не ругался на MISSING_EXPORT
+// src/constants.ts
+// Shared, dependency-free constants for categories and home-screen suggestions.
+// Extracted out of Sidebar.tsx / App.tsx specifically so neither file needs to
+// import from the other — avoids the circular-dependency warning Vite/Rolldown
+// raises on Vercel builds.
 
 export type Category = {
-  value: string; // совпадает с Place.category / VendorPlaceInput.category на бэкенде
+  value: string; // matches Place.category / VendorPlaceInput.category on the backend
   label: string;
 };
 
-type SidebarProps = {
-  isOpen: boolean;
-  onClose: () => void;
-  onNewSearch: () => void;
-  onSelectCategory: (category: string) => void;
-  activeCategory?: string | null;
-  userName?: string;
+// Same enum as CATEGORIES in pages/VendorDashboard.tsx, just with Russian labels for display.
+export const CATEGORIES: Category[] = [
+  { value: "cafe", label: "Кофейни" },
+  { value: "restaurant", label: "Рестораны" },
+  { value: "barbershop", label: "Барбершопы" },
+  { value: "sto", label: "СТО" },
+  { value: "gym", label: "Спортзалы" },
+  { value: "other", label: "Другое" },
+];
+
+export type Suggestion = {
+  label: string; // shown on the card
+  query: string; // what actually gets set into the search query on click
 };
 
-export function Sidebar({
-  isOpen,
-  onClose,
-  onNewSearch,
-  onSelectCategory,
-  activeCategory,
-  userName = "Гость",
-}: SidebarProps) {
-  return (
-    <>
-      {/* Mobile overlay */}
-      {isOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/60 md:hidden"
-          onClick={onClose}
-        />
-      )}
-
-      <aside
-        className={`
-          fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col
-          bg-[#171717] transition-transform duration-200 ease-out
-          md:static md:translate-x-0
-          ${isOpen ? "translate-x-0" : "-translate-x-full"}
-        `}
-      >
-        {/* Top: new search */}
-        <div className="px-3 pt-3">
-          <button
-            onClick={() => {
-              onNewSearch();
-              onClose();
-            }}
-            className="flex w-full items-center gap-2 rounded-lg border border-white/10 px-3 py-2.5
-                       text-sm text-[#ececec] hover:bg-white/5 transition-colors"
-          >
-            <Plus size={16} strokeWidth={2} />
-            <span>Найти место</span>
-          </button>
-        </div>
-
-        {/* Middle: реальные категории заведений, импортированные из App.tsx */}
-        <nav className="mt-4 flex-1 overflow-y-auto px-3">
-          <p className="px-2 pb-1 text-xs font-medium text-white/40">
-            Категории
-          </p>
-          <ul className="flex flex-col gap-0.5">
-            {CATEGORIES.map((cat) => {
-              const active = activeCategory === cat.value;
-              return (
-                <li key={cat.value}>
-                  <button
-                    onClick={() => {
-                      onSelectCategory(cat.value);
-                      onClose();
-                    }}
-                    className={`
-                      group flex w-full items-center gap-2 rounded-lg px-2 py-2
-                      text-left text-sm transition-colors
-                      ${
-                        active
-                          ? "bg-white/10 text-[#ececec]"
-                          : "text-white/80 hover:bg-white/5"
-                      }
-                    `}
-                  >
-                    <LayoutGrid
-                      size={14}
-                      className={`shrink-0 ${
-                        active ? "text-white/80" : "text-white/40 group-hover:text-white/60"
-                      }`}
-                    />
-                    <span className="truncate">{cat.label}</span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </nav>
-
-        {/* Bottom: profile */}
-        <div className="border-t border-white/10 p-3">
-          <button className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 hover:bg-white/5 transition-colors">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/10">
-              <User size={14} className="text-white/70" />
-            </div>
-            <span className="flex-1 truncate text-left text-sm text-[#ececec]">
-              {userName}
-            </span>
-            <ChevronUp size={14} className="text-white/40" />
-          </button>
-        </div>
-      </aside>
-    </>
-  );
-}
+// The label is a natural question; the query is what we can realistically match
+// against name/category/district/tags/ambient_description in App.tsx's filter.
+export const SUGGESTIONS: Suggestion[] = [
+  { label: "Где поработать с ноутбуком?", query: "wifi" },
+  { label: "Тихие места Астаны", query: "тихо" },
+  { label: "Кофейня с розетками рядом", query: "розетки" },
+  { label: "Куда сходить вечером вдвоём", query: "restaurant" },
+];
