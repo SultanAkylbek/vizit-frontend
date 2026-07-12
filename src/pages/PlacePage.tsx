@@ -1,43 +1,71 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
-import { Star, Wifi, Plug, ExternalLink, Instagram } from "lucide-react";
+import { Wifi, Plug, ExternalLink, MapPin } from "lucide-react";
 import { Layout } from "../Layout";
+import type { Place } from "../api/index";
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? "";
-
-type Place = {
-  id: string;
-  slug: string;
-  name: string;
-  category: string;
-  ambient_description: string;
-  tags: string[];
-  rating_value?: number;
-  review_count?: number;
-  instagram_link?: string;
-  twogis_link?: string;
-};
+// Same backend as api/index.ts. Kept as a local constant (not import.meta.env)
+// because that's how the original slug-lookup fix was wired.
+const API_BASE = "https://vizit-backend-vdt2.onrender.com";
 
 const TAG_ICON: Record<string, typeof Wifi> = {
   wifi: Wifi,
   "розетки": Plug,
 };
 
-export default function PlacePage() {
-  const { slug = "" } = useParams();
+type Status = "loading" | "ok" | "error";
+
+type DebugInfo = {
+  urlTried: string;
+  status: number | string;
+  usedFallback: boolean;
+};
+
+type PlacePageProps = {
+  slug: string;
+};
+
+export default function PlacePage({ slug }: PlacePageProps) {
   const [place, setPlace] = useState<Place | null>(null);
-  const [status, setStatus] = useState<"loading" | "ok" | "error">("loading");
+  const [status, setStatus] = useState<Status>("loading");
+  const [debug, setDebug] = useState<DebugInfo | null>(null);
 
   useEffect(() => {
     const cleanSlug = slug.trim().toLowerCase();
+    const primaryUrl = `${API_BASE}/api/v1/places/${encodeURIComponent(cleanSlug)}`;
+
     setStatus("loading");
-    fetch(`${API_BASE}/api/v1/places/${encodeURIComponent(cleanSlug)}`)
-      .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
-      .then((data) => {
+    setDebug(null);
+
+    fetch(primaryUrl)
+      .then((res) => {
+        if (res.ok) return res.json();
+        return Promise.reject({ url: primaryUrl, status: res.status });
+      })
+      .then((data: Place) => {
         setPlace(data);
         setStatus("ok");
       })
-      .catch(() => setStatus("error"));
+      .catch((firstErr) => {
+        // Fallback: retry with a trailing slash in case of a routing edge case.
+        const fallbackUrl = `${primaryUrl}/`;
+        fetch(fallbackUrl)
+          .then((res) => {
+            if (res.ok) return res.json();
+            return Promise.reject({ url: fallbackUrl, status: res.status });
+          })
+          .then((data: Place) => {
+            setPlace(data);
+            setStatus("ok");
+          })
+          .catch((secondErr) => {
+            setDebug({
+              urlTried: `${primaryUrl} → ${firstErr.status ?? "network error"}, ${fallbackUrl} → ${secondErr.status ?? "network error"}`,
+              status: secondErr.status ?? "network error",
+              usedFallback: true,
+            });
+            setStatus("error");
+          });
+      });
   }, [slug]);
 
   return (
@@ -62,37 +90,49 @@ export default function PlacePage() {
             )}
 
             {status === "error" && (
-              <p className="text-sm text-white/60">
-                Не нашёл заведение «{slug}». Возможно, оно было удалено или
-                ссылка неверна.
-              </p>
+              <div className="flex flex-col gap-2">
+                <p className="text-sm text-white/60">
+                  Не нашёл заведение «{slug}». Возможно, оно было удалено или
+                  ссылка неверна.
+                </p>
+                {debug && (
+                  <pre className="overflow-x-auto rounded-lg border border-white/10 bg-[#2a2a2a] p-3 text-[11px] text-white/40">
+                    {debug.urlTried}
+                  </pre>
+                )}
+              </div>
             )}
 
             {status === "ok" && place && (
               <div className="flex flex-col gap-4">
                 <div>
-                  <h1 className="text-lg font-medium text-[#ececec]">
+                  <h1 className="flex items-center gap-2 text-lg font-medium text-[#ececec]">
+                    {place.emoji && <span>{place.emoji}</span>}
                     {place.name}
+                    {place.is_verified && (
+                      <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-normal text-white/60">
+                        проверено
+                      </span>
+                    )}
                   </h1>
-                  {place.rating_value != null && (
-                    <div className="mt-1 flex items-center gap-1.5 text-sm text-white/60">
-                      <Star
-                        size={14}
-                        className="fill-amber-400 text-amber-400"
-                      />
-                      <span>{place.rating_value.toFixed(1)}</span>
-                      {place.review_count != null && (
-                        <span className="text-white/40">
-                          ({place.review_count} отзывов)
-                        </span>
-                      )}
-                    </div>
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5 text-sm text-white/60">
+                    <MapPin size={13} className="text-white/40" />
+                    <span>
+                      {[place.district, place.address].filter(Boolean).join(", ")}
+                    </span>
+                  </div>
+                  {place.avg_check_kzt != null && (
+                    <p className="mt-1 text-sm text-white/60">
+                      Средний чек: ~{place.avg_check_kzt.toLocaleString("ru-RU")} ₸
+                    </p>
                   )}
                 </div>
 
-                <p className="text-[15px] leading-relaxed text-white/85">
-                  {place.ambient_description}
-                </p>
+                {place.ambient_description && (
+                  <p className="text-[15px] leading-relaxed text-white/85">
+                    {place.ambient_description}
+                  </p>
+                )}
 
                 {place.tags?.length > 0 && (
                   <div className="flex flex-wrap gap-2">
@@ -112,11 +152,11 @@ export default function PlacePage() {
                   </div>
                 )}
 
-                {/* Actions, styled as a follow-up to the AI answer */}
-                <div className="mt-1 flex flex-wrap gap-2">
-                  {place.twogis_link && (
+                {/* Action, styled as a follow-up to the AI answer */}
+                {place.two_gis_url && (
+                  <div className="mt-1 flex flex-wrap gap-2">
                     <a
-                      href={place.twogis_link}
+                      href={place.two_gis_url}
                       target="_blank"
                       rel="noreferrer"
                       className="flex items-center gap-1.5 rounded-full bg-[#ececec] px-4 py-2
@@ -125,20 +165,8 @@ export default function PlacePage() {
                       Открыть в 2GIS
                       <ExternalLink size={12} />
                     </a>
-                  )}
-                  {place.instagram_link && (
-                    <a
-                      href={place.instagram_link}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex items-center gap-1.5 rounded-full border border-white/10
-                                 px-4 py-2 text-xs text-white/70 hover:bg-white/5 transition-colors"
-                    >
-                      <Instagram size={12} />
-                      Instagram
-                    </a>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
