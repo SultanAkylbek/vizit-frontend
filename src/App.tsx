@@ -4,11 +4,17 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { Layout } from "./Layout";
 import { usePlaces } from "./hooks/usePlaces";
 import type { Place } from "./api/index";
-import { CATEGORIES } from "./Sidebar";
 
-// Suggestion label shown on the card + the actual term used to filter `places`.
-// The label is a natural question; the query is what we can realistically match
-// against name/category/district/tags/ambient_description.
+// Экспортируем категории прямо отсюда, чтобы убрать ошибку [MISSING_EXPORT] в сборщике
+export const CATEGORIES = [
+  { value: "cafe", label: "Кофейни" },
+  { value: "restaurant", label: "Рестораны" },
+  { value: "barbershop", label: "Барбершопы" },
+  { value: "sto", label: "СТО" },
+  { value: "gym", label: "Спортзалы" },
+  { value: "other", label: "Другое" },
+];
+
 const SUGGESTIONS: { label: string; query: string }[] = [
   { label: "Где поработать с ноутбуком?", query: "wifi" },
   { label: "Тихие места Астаны", query: "тихо" },
@@ -58,7 +64,7 @@ export default function App() {
           VIZIT AI
         </h1>
 
-        {/* Search bar — filters `places` live as you type, no navigation */}
+        {/* Search bar — filters places live as you type */}
         <div className="w-full">
           <div className="flex items-center gap-2 rounded-3xl border border-white/10 bg-[#2f2f2f] px-4 py-3 shadow-sm">
             <input
@@ -86,7 +92,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* Quick suggestions — clicking sets the query and filters instantly */}
+        {/* Quick suggestions */}
         <div className="mt-6 grid w-full grid-cols-1 gap-3 sm:grid-cols-2">
           {SUGGESTIONS.map((s) => (
             <button
@@ -102,13 +108,21 @@ export default function App() {
         </div>
 
         {activeCategoryLabel && (
-          <p className="mt-8 w-full text-xs font-medium text-white/40">
-            Категория: {activeCategoryLabel}
-          </p>
+          <div className="mt-8 flex w-full items-center justify-between border-b border-white/5 pb-2">
+            <p className="text-xs font-medium text-white/40">
+              Категория: <span className="text-white/70">{activeCategoryLabel}</span>
+            </p>
+            <button 
+              onClick={() => navigate("/")}
+              className="text-xs text-white/30 hover:text-white/60 transition-colors"
+            >
+              Сбросить фильтр
+            </button>
+          </div>
         )}
 
-        {/* Live-filtered list of all places from the database */}
-        <div className="mt-3 flex w-full flex-col gap-2 pb-10">
+        {/* Live-filtered list of all places */}
+        <div className="mt-4 flex w-full flex-col gap-2 pb-10">
           {loading && (
             <p className="py-6 text-center text-sm text-white/40">
               Загружаю заведения...
