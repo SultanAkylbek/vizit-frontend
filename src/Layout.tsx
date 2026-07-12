@@ -1,18 +1,16 @@
 import { useState, type ReactNode } from "react";
 import { Menu } from "lucide-react";
-import { useNavigate } from "react-router-dom";
-import { Sidebar, type RecentPlace } from "./Sidebar";
-
-// Replace with real data from usePlaces() / localStorage history.
-const MOCK_RECENT: RecentPlace[] = [
-  { slug: "drinkit", name: "Drinkit — тихая кофейня", category: "cafe" },
-  { slug: "workhub", name: "WorkHub коворкинг", category: "coworking" },
-  { slug: "silent-tea", name: "Silent Tea House", category: "cafe" },
-];
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { Sidebar } from "./Sidebar";
 
 export function Layout({ children }: { children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  // Read directly from the URL so the active category highlights correctly
+  // no matter which page (Home, PlacePage, ...) is currently rendered.
+  const activeCategory = searchParams.get("category");
 
   return (
     <div className="flex h-screen bg-[#212121] text-[#ececec]">
@@ -20,8 +18,8 @@ export function Layout({ children }: { children: ReactNode }) {
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         onNewSearch={() => navigate("/")}
-        onSelectPlace={(slug) => navigate(`/place/${slug}`)}
-        recentPlaces={MOCK_RECENT}
+        onSelectCategory={(category) => navigate(`/?category=${category}`)}
+        activeCategory={activeCategory}
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
