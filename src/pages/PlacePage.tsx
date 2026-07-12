@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Star, Wifi, Plug, ExternalLink, Instagram } from "lucide-react";
-import { Layout } from "../components/Layout";
+import { Layout } from "../Layout";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "";
 
