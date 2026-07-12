@@ -4,7 +4,7 @@
 // и его было проще переиспользовать/тестировать отдельно.
 
 import { useParams } from "react-router-dom";
-import { PlacePage } from "./PlacePage";
+import PlacePage from "./PlacePage";
 
 export function PlacePageRoute() {
   const { slug } = useParams<{ slug: string }>();
