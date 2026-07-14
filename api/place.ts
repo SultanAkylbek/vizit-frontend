@@ -1,311 +1,282 @@
-// api/place.ts
-// Vercel Edge Function — SSR для страниц заведений.
-// Запрашивает данные из бэкенда (Supabase через FastAPI),
-// отдаёт ботам полный HTML с JSON-LD и мета-тегами.
-//
-// Никаких внешних API-вызовов (OpenAI, Anthropic и т.д.) здесь нет.
-// Все поля (seo_keywords, rating_value, review_count, instagram_link,
-// twogis_link) заполняются вручную в Supabase и просто читаются отсюда.
-
 export const config = { runtime: "edge" };
 
-const BACKEND  = "https://vizit-backend-vdt2.onrender.com";
+const BACKEND = "https://vizit-backend-vdt2.onrender.com";
 const FRONTEND = "https://vizit-ai.vercel.app";
 
-// ── Schema.org @type по категории ─────────────────────────────
 const SCHEMA_TYPE: Record<string, string> = {
-  cafe:       "CafeOrCoffeeShop",
+  cafe: "CafeOrCoffeeShop",
   restaurant: "Restaurant",
   barbershop: "HairSalon",
-  sto:        "AutoRepair",
-  gym:        "ExerciseGym",
+  sto: "AutoRepair",
+  gym: "ExerciseGym",
 };
 
-// ── Тип заведения — все поля которые приходят из бэкенда ──────
-interface Place {
-  id:                  string;
-  name:                string;
-  slug:                string;
-  category:            string;
-  district:            string;
-  address:             string;
-  ambient_description: string | null;
-  tags:                string[];
-  is_verified:         boolean;
-  tier:                string;
-  avg_check_kzt:       number | null;
-  has_wifi:            boolean;
-  has_outlets:         boolean;
-  lat:                 number | null;
-  lng:                 number | null;
-  emoji:               string | null;
-  two_gis_url:         string | null;
-  offers:              { title: string; bonus_text: string }[];
-  // ── Поля заполняются вручную в Supabase ───────────────────
-  seo_keywords:   string | null;  // "laptop-friendly, кофейня Астана, wifi, ..."
-  rating_value:   number | null;  // 1.0–5.0
-  review_count:   number | null;  // кол-во отзывов
-  instagram_link: string | null;  // https://instagram.com/...
-  twogis_link:    string | null;  // https://2gis.kz/...
+interface Offer {
+  title?: string | null;
+  bonus_text?: string | null;
 }
 
-// ── Fetch с таймаутом ─────────────────────────────────────────
-async function fetchPlace(slug: string): Promise<Place | null> {
+interface Place {
+  id: string;
+  name: string;
+  slug: string;
+  category?: string | null;
+  district?: string | null;
+  address?: string | null;
+  ambient_description?: string | null;
+  tags?: string[] | null;
+  is_verified?: boolean;
+  tier?: string | null;
+  avg_check_kzt?: number | null;
+  has_wifi?: boolean;
+  has_outlets?: boolean;
+  lat?: number | null;
+  lng?: number | null;
+  emoji?: string | null;
+  two_gis_url?: string | null;
+  twogis_link?: string | null;
+  offers?: Offer[] | null;
+  seo_keywords?: string | null;
+  rating?: number | null;
+  rating_value?: number | null;
+  review_count?: number | null;
+  instagram_link?: string | null;
+}
+
+type FetchResult =
+  | { status: "found"; place: Place }
+  | { status: "not_found" }
+  | { status: "timeout" }
+  | { status: "error" };
+
+function escapeHtml(value: unknown): string {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function serializeJsonLd(value: unknown): string {
+  return JSON.stringify(value)
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/&/g, "\\u0026")
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029");
+}
+
+function safeExternalUrl(value?: string | null): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+function canonicalUrl(slug: string): string {
+  return `${FRONTEND}/place/${encodeURIComponent(slug)}`;
+}
+
+async function fetchPlace(slug: string): Promise<FetchResult> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8000);
 
-  const urls = [
-    `${BACKEND}/api/v1/places/${encodeURIComponent(slug)}`,
-    `${BACKEND}/api/v1/places/${encodeURIComponent(slug)}/`,
-  ];
+  try {
+    const response = await fetch(`${BACKEND}/api/v1/places/${encodeURIComponent(slug)}`, {
+      signal: controller.signal,
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+    });
 
-  for (const url of urls) {
-    try {
-      const res = await fetch(url, {
-        signal:  controller.signal,
-        headers: { "Accept": "application/json" },
-        cache:   "no-store",
-      });
+    if (response.status === 404) return { status: "not_found" };
+    if (!response.ok) return { status: "error" };
 
-      if (res.ok) {
-        clearTimeout(timeout);
-        return res.json() as Promise<Place>;
-      }
-      if (res.status === 404) {
-        clearTimeout(timeout);
-        return null;
-      }
-    } catch (e) {
-      if ((e as Error).name === "AbortError") {
-        clearTimeout(timeout);
-        return null;
-      }
+    const place: unknown = await response.json();
+    if (!place || typeof place !== "object" || !("name" in place) || !("slug" in place)) {
+      return { status: "error" };
     }
+    return { status: "found", place: place as Place };
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") return { status: "timeout" };
+    return { status: "error" };
+  } finally {
+    clearTimeout(timeout);
   }
-
-  clearTimeout(timeout);
-  return null;
 }
 
-// ── JSON-LD (Schema.org) ──────────────────────────────────────
 function buildJsonLd(place: Place): Record<string, unknown> {
+  const category = place.category || "заведение";
+  const district = place.district || "Астана";
+  const gisUrl = safeExternalUrl(place.twogis_link ?? place.two_gis_url);
+  const instagramUrl = safeExternalUrl(place.instagram_link);
+  const rating = place.rating_value ?? place.rating;
   const jsonLd: Record<string, unknown> = {
     "@context": "https://schema.org",
-    "@type":    SCHEMA_TYPE[place.category] ?? "LocalBusiness",
-    name:       place.name,
-    description: place.ambient_description ??
-      `${place.name} — ${place.category} в районе ${place.district}, Астана`,
-    url: `${FRONTEND}/place/${place.slug}`,
+    "@type": SCHEMA_TYPE[category] ?? "LocalBusiness",
+    name: place.name,
+    description: place.ambient_description || `${place.name} — ${category} в районе ${district}, Астана`,
+    url: canonicalUrl(place.slug),
     address: {
-      "@type":         "PostalAddress",
-      streetAddress:   place.address,
+      "@type": "PostalAddress",
+      streetAddress: place.address || undefined,
       addressLocality: "Астана",
-      addressCountry:  "KZ",
+      addressCountry: "KZ",
     },
   };
 
-  // aggregateRating — только если вбиты rating_value и review_count
-  if (place.rating_value && place.review_count) {
+  if (rating != null && place.review_count != null && place.review_count > 0) {
     jsonLd.aggregateRating = {
-      "@type":       "AggregateRating",
-      ratingValue:   place.rating_value,
-      bestRating:    5,
-      worstRating:   1,
-      ratingCount:   place.review_count,
+      "@type": "AggregateRating",
+      ratingValue: rating,
+      bestRating: 5,
+      worstRating: 1,
+      ratingCount: place.review_count,
     };
   }
 
-  // sameAs — все известные внешние страницы заведения
-  const sameAs: string[] = [];
-  const gisUrl = place.twogis_link ?? place.two_gis_url;
-  if (gisUrl)              sameAs.push(gisUrl);
-  if (place.instagram_link) sameAs.push(place.instagram_link);
-  if (sameAs.length)       jsonLd.sameAs = sameAs;
+  const sameAs = [gisUrl, instagramUrl].filter((value): value is string => Boolean(value));
+  if (sameAs.length) jsonLd.sameAs = sameAs;
 
-  if (place.lat && place.lng) {
-    jsonLd.geo = {
-      "@type":   "GeoCoordinates",
-      latitude:  place.lat,
-      longitude: place.lng,
-    };
+  if (place.lat != null && place.lng != null) {
+    jsonLd.geo = { "@type": "GeoCoordinates", latitude: place.lat, longitude: place.lng };
   }
-
-  if (place.tags?.length) {
-    jsonLd.keywords = place.tags.join(", ");
-  }
-
-  if (place.avg_check_kzt) {
-    jsonLd.priceRange = `~${place.avg_check_kzt} ₸`;
-  }
-
+  if (place.tags?.length) jsonLd.keywords = place.tags.join(", ");
+  if (place.avg_check_kzt != null) jsonLd.priceRange = `~${place.avg_check_kzt} ₸`;
   if (gisUrl) jsonLd.hasMap = gisUrl;
 
-  const amenities: unknown[] = [];
-  if (place.has_wifi)    amenities.push({ "@type": "LocationFeatureSpecification", name: "WiFi",          value: true });
+  const amenities: Record<string, unknown>[] = [];
+  if (place.has_wifi) amenities.push({ "@type": "LocationFeatureSpecification", name: "WiFi", value: true });
   if (place.has_outlets) amenities.push({ "@type": "LocationFeatureSpecification", name: "Power outlets", value: true });
-  if (amenities.length)  jsonLd.amenityFeature = amenities;
+  if (amenities.length) jsonLd.amenityFeature = amenities;
 
   return jsonLd;
 }
 
-// ── HTML для успешного случая ─────────────────────────────────
 function renderPlaceHtml(place: Place): string {
-  const title = `${place.name} — ${place.category} в Астане | VIZIT AI`;
-  const desc  = place.ambient_description ??
-    `${place.name}: ${place.address}, ${place.district}. VIZIT AI — гид по заведениям Астаны.`;
-
-  // search-context: ambient_description + seo_keywords + tags в одном теге.
-  // Не отображается пользователю. AI-краулеры читают весь <head> и
-  // используют content этого тега как сигнал релевантности запросу.
-  const searchContext = [
-    place.ambient_description,
-    place.seo_keywords,
-    place.tags?.join(", "),
-  ].filter(Boolean).join(". ");
-
-  const jsonLd   = JSON.stringify(buildJsonLd(place));
-  const gisUrl   = place.twogis_link ?? place.two_gis_url;
+  const category = place.category || "заведение";
+  const district = place.district || "Астана";
+  const title = `${place.name} — ${category} в Астане | VIZIT AI`;
+  const description = place.ambient_description || `${place.name}: ${place.address || district}. VIZIT AI — гид по заведениям Астаны.`;
+  const pageUrl = canonicalUrl(place.slug);
+  const gisUrl = safeExternalUrl(place.twogis_link ?? place.two_gis_url);
+  const rating = place.rating_value ?? place.rating;
 
   const tagsHtml = place.tags?.length
-    ? place.tags.map(t =>
-        `<span style="background:#f0f0ee;border-radius:20px;padding:4px 12px;font-size:12px;color:#555;margin:0 4px 4px 0;display:inline-block">${t}</span>`
-      ).join("")
+    ? place.tags.map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join("")
+    : "";
+  const offer = place.offers?.[0];
+  const offerHtml = offer && (offer.title || offer.bonus_text)
+    ? `<aside class="offer"><strong>${escapeHtml(offer.title || "Предложение")}</strong>${offer.bonus_text ? ` — ${escapeHtml(offer.bonus_text)}` : ""}</aside>`
+    : "";
+  const mapLink = gisUrl
+    ? `<a class="map" href="${escapeHtml(gisUrl)}" target="_blank" rel="noopener noreferrer">Открыть в 2GIS</a>`
+    : "";
+  const ratingHtml = rating != null
+    ? `<span class="rating">${escapeHtml(rating)}</span>${place.review_count ? ` <span>(${escapeHtml(place.review_count)} отзывов)</span>` : ""}`
+    : "";
+  const priceHtml = place.avg_check_kzt != null
+    ? `<p class="price">Средний чек: ~${escapeHtml(place.avg_check_kzt.toLocaleString("ru-RU"))} ₸</p>`
     : "";
 
-  const offerHtml = place.offers?.[0]
-    ? `<div style="background:#fff8e6;border:1px solid #f0c040;border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:14px">
-         🎁 ${place.offers[0].title} — ${place.offers[0].bonus_text}
-       </div>`
-    : "";
-
-  const gisBtn = gisUrl
-    ? `<a href="${gisUrl}" target="_blank" rel="noreferrer"
-           style="display:inline-block;background:#378ADD;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">
-         🗺️ Открыть в 2GIS
-       </a>`
-    : "";
-
-  const ratingHtml = place.rating_value
-    ? `<span style="color:#BA7517;font-weight:600">★ ${place.rating_value}</span>
-       ${place.review_count ? `<span style="color:#999;font-size:12px">(${place.review_count} отзывов)</span>` : ""}
-       &nbsp;`
-    : "";
-
-  return `<!DOCTYPE html>
+  return `<!doctype html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>${title}</title>
-  <meta name="description" content="${desc.replace(/"/g, "&quot;")}"/>
-  <meta property="og:type"        content="website"/>
-  <meta property="og:title"       content="${title.replace(/"/g, "&quot;")}"/>
-  <meta property="og:description" content="${desc.replace(/"/g, "&quot;")}"/>
-  <meta property="og:url"         content="${FRONTEND}/place/${place.slug}"/>
-  <meta name="robots" content="index,follow"/>
-  ${searchContext
-    ? `<meta name="search-context" content="${searchContext.replace(/"/g, "&quot;")}"/>`
-    : ""}
-  <link rel="canonical" href="${FRONTEND}/place/${place.slug}"/>
-  <script type="application/ld+json">${jsonLd}</script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>${escapeHtml(title)}</title>
+  <meta name="description" content="${escapeHtml(description)}">
+  <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="${escapeHtml(title)}">
+  <meta property="og:description" content="${escapeHtml(description)}">
+  <meta property="og:url" content="${escapeHtml(pageUrl)}">
+  <link rel="canonical" href="${escapeHtml(pageUrl)}">
+  <script type="application/ld+json">${serializeJsonLd(buildJsonLd(place))}</script>
   <style>
-    body{font-family:system-ui,sans-serif;background:#f5f5f3;margin:0;padding:24px 16px 60px}
-    .card{background:#fff;border:1px solid #e3e3e0;border-radius:16px;padding:24px;max-width:560px;margin:0 auto}
-    a.back{color:#378ADD;text-decoration:none;font-size:13px;display:inline-block;margin-bottom:20px}
-    h1{font-size:24px;font-weight:700;margin:0 0 4px;color:#1a1a1a}
-    .meta{font-size:13px;color:#777;margin-bottom:16px}
-    .desc{font-size:15px;line-height:1.6;color:#333;margin-bottom:16px}
+    :root{color-scheme:light}*{box-sizing:border-box}body{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f5f5f3;color:#1a1a1a;margin:0;padding:24px 16px 60px}.shell{max-width:608px;margin:0 auto}.card{background:#fff;border:1px solid #e3e3e0;border-radius:16px;padding:24px}.back{color:#1769aa;text-decoration:none;font-size:14px;display:inline-block;margin-bottom:20px}h1{font-size:28px;line-height:1.2;margin:0 0 8px}.emoji{font-size:36px;margin-bottom:8px}.meta,.price{font-size:14px;color:#6b6b68}.description{font-size:16px;line-height:1.6;color:#333}.rating{color:#8a5800;font-weight:700}.offer{background:#fff8e6;border:1px solid #d8a82d;border-radius:8px;padding:12px 16px;margin:16px 0;font-size:14px}.tags{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}.tag{background:#f0f0ee;border-radius:20px;padding:4px 12px;font-size:12px;color:#555}.map{display:inline-block;background:#1769aa;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:700}
   </style>
 </head>
 <body>
-  <a href="/" class="back">← VIZIT AI</a>
-  <div class="card">
-    <div style="font-size:36px;margin-bottom:8px">${place.emoji ?? "📍"}</div>
-    <h1>${place.name}</h1>
-    <p class="meta">${ratingHtml}${place.category} · ${place.district} · ${place.address}</p>
-    ${place.ambient_description ? `<p class="desc">${place.ambient_description}</p>` : ""}
-    ${offerHtml}
-    ${tagsHtml ? `<div style="margin-bottom:16px">${tagsHtml}</div>` : ""}
-    ${place.avg_check_kzt ? `<p style="font-size:13px;color:#777;margin-bottom:16px">Средний чек: ~${place.avg_check_kzt.toLocaleString("ru-RU")} ₸</p>` : ""}
-    ${gisBtn}
-  </div>
+  <main class="shell">
+    <a href="/" class="back">← VIZIT AI</a>
+    <article class="card">
+      ${place.emoji ? `<div class="emoji" aria-hidden="true">${escapeHtml(place.emoji)}</div>` : ""}
+      <h1>${escapeHtml(place.name)}</h1>
+      <p class="meta">${ratingHtml}${ratingHtml ? " · " : ""}${escapeHtml(category)} · ${escapeHtml(district)}${place.address ? ` · ${escapeHtml(place.address)}` : ""}</p>
+      ${place.ambient_description ? `<p class="description">${escapeHtml(place.ambient_description)}</p>` : ""}
+      ${offerHtml}
+      ${tagsHtml ? `<div class="tags">${tagsHtml}</div>` : ""}
+      ${priceHtml}
+      ${mapLink}
+    </article>
+  </main>
 </body>
 </html>`;
 }
 
-// ── HTML-заглушка при ошибке / таймауте ──────────────────────
 function renderFallbackHtml(reason: "timeout" | "not_found" | "error"): string {
   const messages = {
-    timeout:   "Сервер просыпается (cold start). Страница появится через несколько секунд.",
+    timeout: "Сервер отвечает дольше обычного. Попробуйте обновить страницу через несколько секунд.",
     not_found: "Такое заведение не найдено в базе VIZIT AI.",
-    error:     "Временная ошибка. Попробуйте обновить страницу.",
+    error: "Сервис временно недоступен. Попробуйте обновить страницу позже.",
   };
-  const isRetryable = reason !== "not_found";
+  const retryable = reason !== "not_found";
+  const title = reason === "not_found" ? "Страница не найдена" : "Временно недоступно";
 
-  return `<!DOCTYPE html>
-<html lang="ru">
-<head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>VIZIT AI — ${reason === "not_found" ? "Не найдено" : "Загрузка"}</title>
-  ${isRetryable ? '<meta http-equiv="refresh" content="6"/>' : ""}
-  <style>
-    body{font-family:system-ui,sans-serif;background:#f5f5f3;margin:0;padding:40px 16px;text-align:center}
-    .card{background:#fff;border:1px solid #e3e3e0;border-radius:16px;padding:32px;max-width:480px;margin:0 auto}
-  </style>
-</head>
-<body>
-  <div class="card">
-    <div style="font-size:48px;margin-bottom:16px">${reason === "not_found" ? "🔍" : "⏳"}</div>
-    <h2 style="color:#1a1a1a;margin-bottom:8px">VIZIT AI</h2>
-    <p style="color:#666;line-height:1.6">${messages[reason]}</p>
-    ${isRetryable ? "<p style='font-size:12px;color:#aaa'>Страница обновится автоматически…</p>" : ""}
-    <a href="/" style="color:#378ADD;font-size:13px">← На главную</a>
-  </div>
-</body>
-</html>`;
+  return `<!doctype html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>VIZIT AI — ${title}</title></head><body><main style="max-width:480px;margin:48px auto;padding:24px;font:16px/1.6 system-ui,sans-serif"><h1>VIZIT AI</h1><p>${messages[reason]}</p>${retryable ? "<p>Повторите попытку немного позже.</p>" : ""}<a href="/">На главную</a></main></body></html>`;
 }
 
-// ── Главный обработчик ────────────────────────────────────────
 export default async function handler(req: Request): Promise<Response> {
-  const url  = new URL(req.url);
-  const slug = url.pathname.replace(/^\/place\//, "").replace(/\/$/, "").trim().toLowerCase();
+  const url = new URL(req.url);
+  const rawSlug = url.pathname.replace(/^\/place\//, "").replace(/\/$/, "").trim();
+
+  let slug: string;
+  try {
+    slug = decodeURIComponent(rawSlug).toLowerCase();
+  } catch {
+    return new Response(renderFallbackHtml("not_found"), {
+      status: 404,
+      headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "X-Robots-Tag": "noindex" },
+    });
+  }
 
   if (!slug) {
     return new Response(renderFallbackHtml("not_found"), {
-      status:  404,
-      headers: { "Content-Type": "text/html; charset=utf-8" },
+      status: 404,
+      headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "X-Robots-Tag": "noindex" },
     });
   }
 
-  let place: Place | null = null;
-  let timedOut = false;
+  const result = await fetchPlace(slug);
 
-  try {
-    place = await fetchPlace(slug);
-  } catch {
-    timedOut = true;
-  }
-
-  if (!place && !timedOut) {
+  if (result.status === "not_found") {
     return new Response(renderFallbackHtml("not_found"), {
-      status:  404,
-      headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },
+      status: 404,
+      headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "X-Robots-Tag": "noindex" },
     });
   }
 
-  if (!place) {
-    return new Response(renderFallbackHtml("timeout"), {
-      status:  200,
-      headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },
+  if (result.status === "timeout" || result.status === "error") {
+    return new Response(renderFallbackHtml(result.status), {
+      status: 503,
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-store",
+        "Retry-After": "10",
+        "X-Robots-Tag": "noindex, nofollow",
+      },
     });
   }
 
-  return new Response(renderPlaceHtml(place), {
-    status:  200,
+  return new Response(renderPlaceHtml(result.place), {
+    status: 200,
     headers: {
-      "Content-Type":  "text/html; charset=utf-8",
-      "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "public, s-maxage=300, stale-while-revalidate=3600",
     },
   });
 }
