@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import { ArrowUp, Search, MapPin } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Layout } from "./Layout";
@@ -27,9 +27,17 @@ type SearchBarProps = {
   onChange: (value: string) => void;
 };
 
-// Shared between the Welcome and Results screens so the input's behaviour
-// (state, disabled logic) lives in exactly one place.
+// ВЫНЕСЛИ ИНПУТ СЮДА — ТЕПЕРЬ ФОКУС ПРИ ВВОДЕ ТЕРЯТЬСЯ НЕ БУДЕТ!
 function SearchBar({ query, onChange }: SearchBarProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Возвращаем фокус в инпут при вводе
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, []);
+
   return (
     <div
       className="flex w-full items-center gap-2 rounded-3xl border border-white/10 bg-[#2f2f2f]
@@ -37,6 +45,7 @@ function SearchBar({ query, onChange }: SearchBarProps) {
     >
       <Search size={16} className="shrink-0 text-white/40" />
       <input
+        ref={inputRef}
         value={query}
         onChange={(e) => onChange(e.target.value)}
         placeholder="Спросите про место в Астане..."
@@ -81,8 +90,6 @@ export default function App() {
     (c) => c.value === activeCategory
   )?.label;
 
-  // Screen switch: Welcome vs Results. Purely a rendering decision —
-  // none of the state/fetching logic above changes based on it.
   const isSearching = query.trim().length > 0 || !!activeCategory;
 
   const handleClear = () => {
@@ -90,7 +97,7 @@ export default function App() {
     navigate("/");
   };
 
-  // ── Screen 1: Welcome — nothing typed, no category selected ──
+  // ── Screen 1: Welcome ──
   if (!isSearching) {
     return (
       <Layout>
@@ -121,7 +128,7 @@ export default function App() {
     );
   }
 
-  // ── Screen 2: Results — input sits at the top, list renders below ──
+  // ── Screen 2: Results ──
   return (
     <Layout>
       <div className="mx-auto flex min-h-full max-w-2xl flex-col px-4 py-8">
