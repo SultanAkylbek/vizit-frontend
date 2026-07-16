@@ -145,6 +145,19 @@ export const placesApi = {
 
 export const offersApi = {
   listMine: (): Promise<any[]> => req("/api/v1/vendor/offers"),
-  create: (data: any): Promise<any> => req("/api/v1/vendor/offers", { method: "POST", body: JSON.stringify(data) }),
-  delete: (id: string): Promise<any> => req(`/api/v1/vendor/offers/${id}`, { method: "DELETE" })
+  create: (data: any): Promise<any> =>
+    req("/api/v1/vendor/offers", { method: "POST", body: JSON.stringify(data) }),
+  upsert: (place_id: string, data: any, idempotencyKey?: string): Promise<any> => {
+    const extraHeaders: Record<string, string> = {};
+    if (idempotencyKey) {
+      extraHeaders["X-Idempotency-Key"] = idempotencyKey;
+    }
+    return req(`/api/v1/vendor/offers`, {
+      method: "POST",
+      body: JSON.stringify({ place_id, ...data }),
+      headers: extraHeaders,
+    });
+  },
+  delete: (id: string): Promise<any> =>
+    req(`/api/v1/vendor/offers/${id}`, { method: "DELETE" }),
 };

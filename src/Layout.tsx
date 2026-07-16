@@ -18,6 +18,8 @@ export function Layout({ children }: { children: ReactNode }) {
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         onNewSearch={() => navigate("/")}
+        onChatOpen={() => navigate("/chat")}
+        onProfileClick={() => navigate("/vendor")}
         onSelectCategory={(category) => navigate(`/?category=${category}`)}
         activeCategory={activeCategory}
       />

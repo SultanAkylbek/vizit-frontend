@@ -5,6 +5,8 @@ type SidebarProps = {
   isOpen: boolean;
   onClose: () => void;
   onNewSearch: () => void;
+  onChatOpen: () => void;
+  onProfileClick: () => void;
   onSelectCategory: (category: string) => void;
   activeCategory?: string | null;
   userName?: string;
@@ -37,7 +39,7 @@ export function Sidebar({
         `}
       >
         {/* Top: new search, styled like ChatGPT's "New chat" */}
-        <div className="px-3 pt-3">
+        <div className="px-3 pt-3 space-y-2">
           <button
             onClick={() => {
               onNewSearch();
@@ -48,6 +50,17 @@ export function Sidebar({
           >
             <Plus size={16} strokeWidth={2} />
             <span>Новый поиск</span>
+          </button>
+          <button
+            onClick={() => {
+              onChatOpen();
+              onClose();
+            }}
+            className="flex w-full items-center gap-2 rounded-lg border border-white/10 px-3 py-2.5
+                       text-sm text-[#ececec] hover:bg-white/5 transition-colors"
+          >
+            <LayoutGrid size={16} className="text-white/40" />
+            <span>Бесплатный чат</span>
           </button>
         </div>
 
@@ -92,7 +105,10 @@ export function Sidebar({
 
         {/* Bottom: profile */}
         <div className="border-t border-white/10 p-3">
-          <button className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 hover:bg-white/5 transition-colors">
+          <button
+            onClick={onProfileClick}
+            className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 hover:bg-white/5 transition-colors"
+          >
             <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/10">
               <User size={14} className="text-white/70" />
             </div>

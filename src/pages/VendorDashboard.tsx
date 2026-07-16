@@ -67,12 +67,35 @@ function genKey(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2);
 }
 
-interface Props {
-  user: { id: string; role: string; name: string; email: string };
-  t: Record<string, any>;
-}
+const TEXT = {
+  addPlaceTitle: "Добавить заведение",
+  editor: "Редактор заведения",
+  addPlace: "Добавить место",
+  offers: "Офферы",
+  fieldName: "Название",
+  fieldCat: "Категория",
+  fieldAddr: "Адрес",
+  fieldDist: "Район",
+  fieldDesc: "Описание",
+  tagsLabel: "Теги (через запятую)",
+  fieldLat: "Широта",
+  fieldLng: "Долгота",
+  fieldGis: "2GIS ссылка",
+  fieldCheck: "Средний чек",
+  fieldWifi: "Wi-Fi",
+  fieldOutlets: "Розетки",
+  submitting: "Сохраняю...",
+  added: "Сохранено",
+  submit: "Сохранить",
+  offerTitle: "Название оффера",
+  bonusText: "Текст бонуса",
+  discountPct: "Скидка, %",
+  activated: "Активировано",
+  activate: "Активировать",
+};
 
-export function VendorDashboard({ t }: Props) {
+export function VendorDashboard() {
+  const t = TEXT;
   const { places, refetch } = usePlaces();
   const myPlace = places[0] ?? null;
 

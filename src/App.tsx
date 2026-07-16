@@ -110,6 +110,21 @@ export default function App() {
             <SearchBar query={query} onChange={setQuery} />
           </div>
 
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <button
+              onClick={() => navigate('/chat')}
+              className="rounded-2xl border border-white/10 bg-[#2a2a2a] px-4 py-3 text-sm text-white/80 hover:bg-white/5 hover:border-white/20 transition-colors"
+            >
+              Бесплатный чат
+            </button>
+            <button
+              onClick={() => navigate('/vendor')}
+              className="rounded-2xl border border-white/10 bg-[#2a2a2a] px-4 py-3 text-sm text-white/80 hover:bg-white/5 hover:border-white/20 transition-colors"
+            >
+              Добавить место
+            </button>
+          </div>
+
           <div className="mt-6 grid w-full grid-cols-1 gap-3 sm:grid-cols-2">
             {SUGGESTIONS.map((s) => (
               <button
