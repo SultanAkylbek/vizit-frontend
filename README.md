@@ -43,6 +43,11 @@ export default defineConfig([
 ])
 ```
 
+### LLM integration for locally added places
+
+Frontend отправляет опциональное поле `local_places` в `POST /api/v1/search`. Если вы хотите, чтобы внешние модели (ChatGPT/Gemini/Claude) учитывали локальные точки, добавьте обработку `local_places` на бэкенде. См. `docs/LLM_local_places.md` для примера и инструкции.
+
+
 You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
 
 ```js
