@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Layout } from "../Layout";
 import { usePlaces } from "../hooks/usePlaces";
+import { placesApi } from "../api/index";
 import type { Place } from "../api/index";
 
 function formatPlace(place: Place) {
@@ -69,13 +70,29 @@ export default function ChatPage() {
 
   const canSend = query.trim().length > 0 && !loading;
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const trimmed = query.trim();
     if (!trimmed) return;
     setHistory((prev) => [...prev, { role: "user", text: trimmed }]);
-    const answer = getChatAnswer(trimmed, places, userLoc);
-    setHistory((prev) => [...prev, { role: "assistant", text: answer }]);
+
+    // Prepare local places to include in the search request (prefer local marked places)
+    const localPlaces = places.filter((p) => (p as any).__local).slice(0, 12);
+
+    try {
+      const res = await placesApi.search(trimmed, "ru", null, localPlaces as Place[]);
+      if (res && typeof res.rec === "string" && res.rec.trim()) {
+        setHistory((prev) => [...prev, { role: "assistant", text: res.rec }]);
+      } else {
+        // fallback to client-side answer
+        const answer = getChatAnswer(trimmed, places, userLoc);
+        setHistory((prev) => [...prev, { role: "assistant", text: answer }]);
+      }
+    } catch (e) {
+      const answer = getChatAnswer(trimmed, places, userLoc);
+      setHistory((prev) => [...prev, { role: "assistant", text: answer }]);
+    }
+
     setQuery("");
   };
 

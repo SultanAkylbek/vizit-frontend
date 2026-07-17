@@ -124,10 +124,15 @@ async function req<T>(path: string, options: RequestInit = {}): Promise<T> {
 export const placesApi = {
   list: (): Promise<Place[]> => req("/api/v1/places"),
 
-  search: (query: string, lang: string, session_id: string | null): Promise<SearchResult> =>
+  search: (
+    query: string,
+    lang: string,
+    session_id: string | null,
+    local_places?: Place[]
+  ): Promise<SearchResult> =>
     req("/api/v1/search", {
       method: "POST",
-      body: JSON.stringify({ query, lang, session_id }),
+      body: JSON.stringify({ query, lang, session_id, local_places }),
     }),
 
   upsertMine: (data: VendorPlaceInput, idempotencyKey?: string): Promise<{ status: string; place_id: string }> => {
