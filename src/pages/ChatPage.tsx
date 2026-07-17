@@ -8,7 +8,17 @@ function formatPlace(place: Place) {
   return `• ${place.name}${tags}${place.address ? ` — ${place.address}` : ""}`;
 }
 
-function getChatAnswer(query: string, places: Place[]) {
+function haversine(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const toRad = (v: number) => (v * Math.PI) / 180;
+  const R = 6371; // km
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+function getChatAnswer(query: string, places: Place[], userLocation?: { lat: number; lng: number } | null) {
   const normalized = query.trim().toLowerCase();
   if (!normalized) {
     return "Напишите, что хотите найти: кафе, ресторан, барбершоп или другое место в Астане.";
@@ -30,7 +40,20 @@ function getChatAnswer(query: string, places: Place[]) {
   });
 
   if (exactMatch.length > 0) {
-    const answers = exactMatch.slice(0, 5).map(formatPlace).join("\n");
+    // Prioritise local additions and (if available) by proximity
+    const scored = exactMatch.map((p) => {
+      const isLocal = (p as any).__local ? 1 : 0;
+      let dist = Number.POSITIVE_INFINITY;
+      if (userLocation && p.lat != null && p.lng != null) {
+        dist = haversine(userLocation.lat, userLocation.lng, p.lat, p.lng);
+      }
+      return { p, isLocal, dist };
+    });
+    scored.sort((a, b) => {
+      if (a.isLocal !== b.isLocal) return b.isLocal - a.isLocal; // local first
+      return a.dist - b.dist; // closer first
+    });
+    const answers = scored.slice(0, 5).map((s) => formatPlace(s.p)).join("\n");
     return `Нашёл подходящие места по запросу «${query}»:\n${answers}`;
   }
 
@@ -41,6 +64,7 @@ function getChatAnswer(query: string, places: Place[]) {
 export default function ChatPage() {
   const { places, loading, error } = usePlaces();
   const [query, setQuery] = useState("");
+  const [userLoc, setUserLoc] = useState<{ lat: number; lng: number } | null>(null);
   const [history, setHistory] = useState<Array<{ role: "user" | "assistant"; text: string }>>([]);
 
   const canSend = query.trim().length > 0 && !loading;
@@ -50,9 +74,18 @@ export default function ChatPage() {
     const trimmed = query.trim();
     if (!trimmed) return;
     setHistory((prev) => [...prev, { role: "user", text: trimmed }]);
-    const answer = getChatAnswer(trimmed, places);
+    const answer = getChatAnswer(trimmed, places, userLoc);
     setHistory((prev) => [...prev, { role: "assistant", text: answer }]);
     setQuery("");
+  };
+
+  const handleUseLocation = () => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setUserLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => setUserLoc(null),
+      { enableHighAccuracy: false, timeout: 5000 }
+    );
   };
 
   return (
@@ -90,6 +123,11 @@ export default function ChatPage() {
               <div>{item.text.split("\n").map((line, index) => (<p key={index}>{line}</p>))}</div>
             </div>
           ))}
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button onClick={handleUseLocation} className="rounded-2xl px-3 py-2 text-sm bg-white/5">Использовать моё местоположение</button>
+          <div className="text-sm text-white/40">{userLoc ? `Локация включена` : `Локация выключена`}</div>
         </div>
 
         <form onSubmit={handleSubmit} className="mt-6 flex gap-3">

@@ -58,6 +58,20 @@ export default function PlacePage({ slug }: PlacePageProps) {
             setStatus("ok");
           })
           .catch((secondErr) => {
+            // Try to find a locally added place (persisted in localStorage) before giving up
+            try {
+              const raw = localStorage.getItem("vizit_local_places");
+              if (raw) {
+                const arr = JSON.parse(raw) as any[];
+                const found = arr.find((p) => p.slug === cleanSlug || p.id === cleanSlug || p.slug === slug);
+                if (found) {
+                  setPlace(found as Place);
+                  setStatus("ok");
+                  return;
+                }
+              }
+            } catch (_) {}
+
             setDebug({
               urlTried: `${primaryUrl} → ${firstErr.status ?? "network error"}, ${fallbackUrl} → ${secondErr.status ?? "network error"}`,
               status: secondErr.status ?? "network error",

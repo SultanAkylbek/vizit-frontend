@@ -129,6 +129,35 @@ export function VendorDashboard() {
       setStatus("ok");
       setForm(EMPTY);
       setTagsRaw("");
+      // Save a local copy so it appears immediately in frontend search/chat
+      try {
+        const raw = localStorage.getItem("vizit_local_places");
+        const arr = raw ? JSON.parse(raw) : [];
+        const slug = (form.name || "").trim().toLowerCase().replace(/[^a-z0-9а-яё\- ]/gi, "").replace(/\s+/g, "-");
+        const localPlace: any = {
+          id: res.place_id || genKey(),
+          name: form.name,
+          slug: slug || (res.place_id || genKey()),
+          category: form.category,
+          district: form.district,
+          address: form.address,
+          emoji: undefined,
+          ambient_description: form.ambient_description,
+          tags: tags,
+          is_verified: false,
+          tier: "",
+          avg_check_kzt: form.avg_check_kzt ?? null,
+          two_gis_url: form.two_gis_url ?? "",
+          lat: form.lat,
+          lng: form.lng,
+        };
+        // remove any existing with same slug
+        const filtered = arr.filter((p: any) => p.slug !== localPlace.slug);
+        filtered.unshift(localPlace);
+        localStorage.setItem("vizit_local_places", JSON.stringify(filtered));
+      } catch (e) {
+        console.error("Failed to persist local place:", e);
+      }
       refetch();
       setTimeout(() => setStatus("idle"), 2500);
     } catch (e) {
