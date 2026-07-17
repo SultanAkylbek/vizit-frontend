@@ -6,7 +6,7 @@ type SidebarProps = {
   onClose: () => void;
   onNewSearch: () => void;
   onChatOpen: () => void;
-  onProfileClick: () => void;
+  onProfileClick?: () => void;
   onSelectCategory: (category: string) => void;
   activeCategory?: string | null;
   userName?: string;
@@ -16,6 +16,8 @@ export function Sidebar({
   isOpen,
   onClose,
   onNewSearch,
+  onChatOpen,
+  onProfileClick,
   onSelectCategory,
   activeCategory,
   userName = "Гость",
@@ -53,7 +55,7 @@ export function Sidebar({
           </button>
           <button
             onClick={() => {
-              onChatOpen();
+              onChatOpen?.();
               onClose();
             }}
             className="flex w-full items-center gap-2 rounded-lg border border-white/10 px-3 py-2.5
@@ -106,7 +108,7 @@ export function Sidebar({
         {/* Bottom: profile */}
         <div className="border-t border-white/10 p-3">
           <button
-            onClick={onProfileClick}
+            onClick={() => onProfileClick?.()}
             className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 hover:bg-white/5 transition-colors"
           >
             <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/10">
