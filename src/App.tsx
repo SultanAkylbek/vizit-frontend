@@ -1,3 +1,4 @@
+import './vizit-effects.css';
 import { useMemo, useState, useRef, useEffect } from "react";
 import { ArrowUp, Search, MapPin } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
