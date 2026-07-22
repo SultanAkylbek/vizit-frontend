@@ -61,7 +61,7 @@ export function Sidebar({
             Категории
           </p>
           <ul className="mb-4 space-y-0.5">
-            {categories.map((c) => (
+            {categories?.map((c) => (
               <li key={c}>
                 <button
                   className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2
@@ -77,7 +77,7 @@ export function Sidebar({
             Недавние места
           </p>
           <ul className="space-y-0.5">
-            {recentPlaces.map((p) => (
+            {recentPlaces?.map((p) => (
               <li key={p.slug}>
                 <button
                   onClick={() => onSelectPlace(p.slug)}
