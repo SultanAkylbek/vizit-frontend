@@ -78,7 +78,7 @@ export function PlaceScreen({
 
             {place.tags.length > 0 && (
               <div className="mt-4 flex flex-wrap gap-2">
-                {place.tags.map((tag) => {
+                {place.tags?.map((tag) => {
                   const Icon = TAG_ICONS[tag];
                   return (
                     <span
