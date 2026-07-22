@@ -87,7 +87,7 @@ export function HomeScreen({
         </form>
 
         <div className="mt-6 grid w-full max-w-xl grid-cols-1 gap-3 sm:grid-cols-2">
-          {SUGGESTIONS.map(({ icon: Icon, label }) => (
+          {SUGGESTIONS?.map(({ icon: Icon, label }) => (
             <button
               key={label}
               onClick={() => onSearch(label)}
