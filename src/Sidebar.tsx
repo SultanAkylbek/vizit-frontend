@@ -1,123 +1,116 @@
-import { Plus, LayoutGrid, User, ChevronUp } from "lucide-react";
-import { CATEGORIES } from "./constants";
+import { Plus, MapPin, ChevronRight, User } from "lucide-react";
 
-type SidebarProps = {
-  isOpen: boolean;
+export interface RecentPlace {
+  slug: string;
+  name: string;
+  city: string;
+}
+
+export interface SidebarProps {
+  isMobileOpen: boolean;
   onClose: () => void;
   onNewSearch: () => void;
-  onChatOpen: () => void;
-  onProfileClick?: () => void;
-  onSelectCategory: (category: string) => void;
-  activeCategory?: string | null;
-  userName?: string;
-};
+  recentPlaces: RecentPlace[];
+  categories: string[];
+  user: { name: string; plan?: string };
+  onSelectPlace: (slug: string) => void;
+}
 
 export function Sidebar({
-  isOpen,
+  isMobileOpen,
   onClose,
   onNewSearch,
-  onChatOpen,
-  onProfileClick,
-  onSelectCategory,
-  activeCategory,
-  userName = "Гость",
+  recentPlaces,
+  categories,
+  user,
+  onSelectPlace,
 }: SidebarProps) {
   return (
     <>
-      {/* Mobile overlay */}
-      {isOpen && (
+      {/* Mobile backdrop */}
+      {isMobileOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/60 md:hidden"
+          className="fixed inset-0 z-30 bg-black/50 md:hidden"
           onClick={onClose}
+          aria-hidden="true"
         />
       )}
 
       <aside
-        className={`
-          fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col
-          bg-[#171717] transition-transform duration-200 ease-out
-          md:static md:translate-x-0
-          ${isOpen ? "translate-x-0" : "-translate-x-full"}
-        `}
+        className={`fixed inset-y-0 left-0 z-40 flex h-screen w-[260px] shrink-0 flex-col
+        bg-[#171717] text-[#ececec] transition-transform duration-200 ease-out
+        md:static md:translate-x-0
+        ${isMobileOpen ? "translate-x-0" : "-translate-x-full"}`}
       >
-        {/* Top: new search, styled like ChatGPT's "New chat" */}
-        <div className="px-3 pt-3 space-y-2">
+        {/* Top: new search */}
+        <div className="px-3 pt-3">
           <button
-            onClick={() => {
-              onNewSearch();
-              onClose();
-            }}
-            className="flex w-full items-center gap-2 rounded-lg border border-white/10 px-3 py-2.5
-                       text-sm text-[#ececec] hover:bg-white/5 transition-colors"
+            onClick={onNewSearch}
+            className="flex w-full items-center gap-2 rounded-lg border border-[#2a2a2a]
+            px-3 py-2.5 text-sm font-medium text-[#ececec] transition-colors
+            hover:bg-[#212121]"
           >
-            <Plus size={16} strokeWidth={2} />
-            <span>Новый поиск</span>
-          </button>
-          <button
-            onClick={() => {
-              onChatOpen?.();
-              onClose();
-            }}
-            className="flex w-full items-center gap-2 rounded-lg border border-white/10 px-3 py-2.5
-                       text-sm text-[#ececec] hover:bg-white/5 transition-colors"
-          >
-            <LayoutGrid size={16} className="text-white/40" />
-            <span>Бесплатный чат</span>
+            <Plus size={16} strokeWidth={2.25} />
+            Найти место
           </button>
         </div>
 
-        {/* Middle: categories, styled like chat-history entries */}
-        <nav className="mt-4 flex-1 overflow-y-auto px-3">
-          <p className="px-2 pb-1 text-xs font-medium text-white/40">
+        {/* Middle: categories + recent places, scrollable */}
+        <nav className="mt-4 flex-1 overflow-y-auto px-3 pb-4">
+          <p className="px-2 pb-1.5 text-[11px] font-medium uppercase tracking-wider text-[#8e8e8e]">
             Категории
           </p>
-          <ul className="flex flex-col gap-0.5">
-            {CATEGORIES.map((cat) => {
-              const active = activeCategory === cat.value;
-              return (
-                <li key={cat.value}>
-                  <button
-                    onClick={() => {
-                      onSelectCategory(cat.value);
-                      onClose();
-                    }}
-                    className={`
-                      group flex w-full items-center gap-2 rounded-lg px-2 py-2
-                      text-left text-sm transition-colors
-                      ${
-                        active
-                          ? "bg-[#2f2f2f] text-[#ececec]"
-                          : "text-white/80 hover:bg-white/5"
-                      }
-                    `}
-                  >
-                    <LayoutGrid
-                      size={14}
-                      className={`shrink-0 ${
-                        active ? "text-white/80" : "text-white/40 group-hover:text-white/60"
-                      }`}
-                    />
-                    <span className="truncate">{cat.label}</span>
-                  </button>
-                </li>
-              );
-            })}
+          <ul className="mb-4 space-y-0.5">
+            {categories.map((c) => (
+              <li key={c}>
+                <button
+                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2
+                  text-sm text-[#d9d9d9] transition-colors hover:bg-[#212121]"
+                >
+                  <span className="truncate">{c}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+
+          <p className="px-2 pb-1.5 text-[11px] font-medium uppercase tracking-wider text-[#8e8e8e]">
+            Недавние места
+          </p>
+          <ul className="space-y-0.5">
+            {recentPlaces.map((p) => (
+              <li key={p.slug}>
+                <button
+                  onClick={() => onSelectPlace(p.slug)}
+                  className="group flex w-full items-center gap-2 rounded-lg px-2.5 py-2
+                  text-left text-sm text-[#d9d9d9] transition-colors hover:bg-[#212121]"
+                >
+                  <MapPin size={14} className="shrink-0 text-[#8e8e8e]" />
+                  <span className="min-w-0 flex-1 truncate">{p.name}</span>
+                  <ChevronRight
+                    size={14}
+                    className="shrink-0 text-[#5f5f5f] opacity-0 transition-opacity group-hover:opacity-100"
+                  />
+                </button>
+              </li>
+            ))}
           </ul>
         </nav>
 
         {/* Bottom: profile */}
-        <div className="border-t border-white/10 p-3">
+        <div className="border-t border-[#2a2a2a] px-3 py-3">
           <button
-            onClick={() => onProfileClick?.()}
-            className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 hover:bg-white/5 transition-colors"
+            className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2
+            text-left transition-colors hover:bg-[#212121]"
           >
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/10">
-              <User size={14} className="text-white/70" />
-            </div>
-            <span className="flex-1 truncate text-left text-sm text-[#ececec]">
-              {userName}
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#3a3a3a]">
+              <User size={14} className="text-[#ececec]" />
             </span>
-            <ChevronUp size={14} className="text-white/40" />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm text-[#ececec]">{user.name}</span>
+              {user.plan && (
+                <span className="block truncate text-xs text-[#8e8e8e]">{user.plan}</span>
+              )}
+            </span>
           </button>
         </div>
       </aside>
