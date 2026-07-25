@@ -1,16 +1,13 @@
 import { useEffect, useState } from "react";
-import { Wifi, Plug, ExternalLink, MapPin } from "lucide-react";
+import { ExternalLink, MapPin } from "lucide-react";
 import { Layout } from "../Layout";
 import type { Place } from "../api/index";
+import { useRecentPlaces } from "../hooks/useRecentPlaces";
+import { normalizeTag } from "../geo/tags";
 
 // Same backend as api/index.ts. Kept as a local constant (not import.meta.env)
 // because that's how the original slug-lookup fix was wired.
 const API_BASE = "https://vizit-backend-vdt2.onrender.com";
-
-const TAG_ICON: Record<string, typeof Wifi> = {
-  wifi: Wifi,
-  "розетки": Plug,
-};
 
 type Status = "loading" | "ok" | "error";
 
@@ -28,6 +25,14 @@ export default function PlacePage({ slug }: PlacePageProps) {
   const [place, setPlace] = useState<Place | null>(null);
   const [status, setStatus] = useState<Status>("loading");
   const [debug, setDebug] = useState<DebugInfo | null>(null);
+  const { pushRecentPlace } = useRecentPlaces();
+
+  // Record a real view once the place has actually loaded — no fake/seed data.
+  useEffect(() => {
+    if (status === "ok" && place?.slug) {
+      pushRecentPlace({ slug: place.slug, name: place.name, district: place.district });
+    }
+  }, [status, place, pushRecentPlace]);
 
   useEffect(() => {
     const cleanSlug = slug.trim().toLowerCase();
@@ -148,18 +153,19 @@ export default function PlacePage({ slug }: PlacePageProps) {
                   </p>
                 )}
 
-                {place.tags?.length > 0 && (
+                {(place.tags?.length ?? 0) > 0 && (
                   <div className="flex flex-wrap gap-2">
-                    {place.tags.map((tag) => {
-                      const Icon = TAG_ICON[tag.toLowerCase()];
+                    {(place.tags ?? []).map((rawTag) => {
+                      const tag = normalizeTag(rawTag);
+                      const Icon = tag.icon;
                       return (
                         <span
-                          key={tag}
+                          key={tag.id}
                           className="flex items-center gap-1.5 rounded-full border border-white/10
                                      bg-[#2a2a2a] px-3 py-1 text-xs text-white/70"
                         >
                           {Icon && <Icon size={12} />}
-                          {tag}
+                          {tag.label}
                         </span>
                       );
                     })}
