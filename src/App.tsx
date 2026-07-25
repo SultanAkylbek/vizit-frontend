@@ -80,7 +80,7 @@ export default function App() {
   const activeCategory = searchParams.get("category");
 
   const filteredPlaces = useMemo(() => {
-    return places.filter(
+    return (places ?? []).filter(
       (p) =>
         matchesQuery(p, query) &&
         (!activeCategory || p.category === activeCategory)
@@ -127,7 +127,7 @@ export default function App() {
           </div>
 
           <div className="mt-6 grid w-full grid-cols-1 gap-3 sm:grid-cols-2">
-            {SUGGESTIONS.map((s) => (
+            {(SUGGESTIONS ?? []).map((s) => (
               <button
                 key={s.label}
                 onClick={() => setQuery(s.query)}
@@ -185,7 +185,7 @@ export default function App() {
 
           {!loading &&
             !error &&
-            filteredPlaces.map((place) => (
+            (filteredPlaces ?? []).map((place) => (
               <button
                 key={place.id}
                 onClick={() => navigate(`/place/${place.slug}`)}
