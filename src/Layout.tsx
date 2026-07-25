@@ -2,11 +2,13 @@ import { useState, type ReactNode } from "react";
 import { Menu } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
+import { useRecentPlaces } from "./hooks/useRecentPlaces";
 
 export function Layout({ children }: { children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { recentPlaces } = useRecentPlaces();
 
   // Read directly from the URL so the active category highlights correctly
   // no matter which page (Home, PlacePage, ...) is currently rendered.
@@ -20,8 +22,16 @@ export function Layout({ children }: { children: ReactNode }) {
         onNewSearch={() => navigate("/")}
         onChatOpen={() => navigate("/chat")}
         onProfileClick={() => navigate("/vendor")}
-        onSelectCategory={(category) => navigate(`/?category=${category}`)}
+        onSelectCategory={(category: string) => {
+          setSidebarOpen(false);
+          navigate(`/?category=${category}`);
+        }}
+        onSelectPlace={(slug: string) => {
+          setSidebarOpen(false);
+          navigate(`/place/${slug}`);
+        }}
         activeCategory={activeCategory}
+        recentPlaces={recentPlaces}
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
