@@ -1,4 +1,6 @@
-const API_BASE = "https://vizit-backend-vdt2.onrender.com";
+import { TOKEN_KEY } from "../auth/authApi";
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://vizit-backend-vdt2.onrender.com";
 
 export interface Place {
   id: string;
@@ -50,38 +52,9 @@ export class ApiError extends Error {
 }
 
 async function req<T>(path: string, options: RequestInit = {}): Promise<T> {
-  // 1. Проверяем твой прямой токен
-  let token = localStorage.getItem("vizit_token");
-
-  // 2. АВТОПОДБОР: выковыриваем JWT из системных хранилищ Supabase
-  if (!token) {
-    try {
-      const keys = Object.keys(localStorage);
-      
-      // Ищем строку сессии Supabase
-      const sbKey = keys.find(key => key.startsWith("sb-") && key.endsWith("-auth-token"));
-      
-      if (sbKey) {
-        const sbData = localStorage.getItem(sbKey);
-        if (sbData) {
-          const parsed = JSON.parse(sbData);
-          token = parsed?.access_token || parsed?.current_session?.access_token || null;
-        }
-      }
-      
-      // Ищем в альтернативных ключах
-      if (!token) {
-        const fallbackKey = keys.find(key => key.includes("supabase.auth.token") || key.includes("supabase_session"));
-        if (fallbackKey) {
-          const fbData = localStorage.getItem(fallbackKey);
-          if (fbData) {
-            const parsed = JSON.parse(fbData);
-            token = parsed?.current_session?.access_token || parsed?.access_token || null;
-          }
-        }
-      }
-    } catch (_) {}
-  }
+  // Token is written exclusively by src/auth/authApi.ts after a real
+  // login/register/refresh call — no more scanning localStorage for it.
+  const token = localStorage.getItem(TOKEN_KEY);
 
   const headers = new Headers();
 
@@ -146,6 +119,86 @@ export const placesApi = {
       headers: extraHeaders,
     });
   },
+};
+
+export interface TwoGisDraft {
+  name: string;
+  category: string;
+  address: string;
+  district: string;
+  ambient_description: string;
+  tags: string[];
+  lat: number | null;
+  lng: number | null;
+  two_gis_url: string;
+  avg_check_kzt: number | null;
+}
+
+export const importApi = {
+  /**
+   * Calls the existing 2GIS import endpoint: it scrapes the given 2GIS place
+   * URL and returns a best-effort draft (OG tags + generated description).
+   * The draft is a starting point — the vendor still reviews/edits it before
+   * it's actually saved via placesApi.upsertMine.
+   */
+  fromTwoGis: (twoGisUrl: string): Promise<TwoGisDraft> =>
+    req("/api/v1/places/from-2gis", {
+      method: "POST",
+      body: JSON.stringify({ two_gis_url: twoGisUrl }),
+    }),
+};
+
+export interface GeoFields {
+  name: string;
+  category: string;
+  ambient_description: string;
+  address: string;
+  district: string;
+  tags: string[];
+  two_gis_url?: string;
+  offers?: unknown[];
+  /** Precomputed Schema.org fragment from src/geo/tags — optional so
+   * existing callers that don't build one yet still type-check. */
+  tags_schema?: unknown;
+}
+
+export interface GeoGenerateResult {
+  schema_generated?: boolean;
+  json_ld?: Record<string, unknown>;
+  indexnow_submitted?: boolean;
+  indexnow_status?: string;
+  [key: string]: unknown;
+}
+
+export interface GeoStatusResult {
+  schema_generated?: boolean;
+  indexed?: boolean;
+  ready?: boolean;
+  [key: string]: unknown;
+}
+
+export const geoApi = {
+  /**
+   * Sends the full GEO field set for a saved place and asks the backend to
+   * (re)generate its Schema.org / JSON-LD markup and, if the backend has an
+   * IndexNow integration wired up, submit the place URL for indexing.
+   * The exact response shape is backend-defined — every field here is read
+   * defensively (see useGeoPipeline) since this endpoint's contract hasn't
+   * been confirmed against the live backend.
+   */
+  generate: (placeId: string, fields: GeoFields): Promise<GeoGenerateResult> =>
+    req("/api/v1/geo/generate", {
+      method: "POST",
+      body: JSON.stringify({ place_id: placeId, ...fields }),
+    }),
+
+  /** Fetches the generated Schema.org JSON-LD for a place, if available. */
+  schema: (placeId: string): Promise<Record<string, unknown>> =>
+    req(`/api/v1/geo/schema/${placeId}`),
+
+  /** Real GEO pipeline status for a place — only used if the backend exposes it. */
+  status: (placeId: string): Promise<GeoStatusResult> =>
+    req(`/api/v1/geo/status/${placeId}`),
 };
 
 export const offersApi = {
