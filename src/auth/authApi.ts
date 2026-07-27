@@ -16,8 +16,7 @@ const SUPABASE_URL =
   import.meta.env.VITE_SUPABASE_URL || "https://tmovjmitaxgzondtojbf.supabase.co";
 const SUPABASE_ANON_KEY =
   import.meta.env.VITE_SUPABASE_ANON_KEY ||
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl4eXBkZXduaHBjbGF3ZHNqaGVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1MDE5OTAsImV4cCI6MjA5NDA3Nzk5MH0.sVqN8BlrjybDJk1yKTlvSQz4NEwMNITvi0o8x_9Ec-w";
-
+  "sb_publishable_r9A5oLwYXfobqbB9haPXMA_nToNkdIM";
 export class AuthError extends Error {
   status: number;
   constructor(status: number, message: string) {
