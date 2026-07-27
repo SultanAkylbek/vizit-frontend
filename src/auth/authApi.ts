@@ -13,7 +13,7 @@ export const SESSION_KEY = "vizit_session";
 // *anon* key, which is meant to be public/client-side (access is enforced by
 // RLS on the Supabase project, not by hiding this value).
 const SUPABASE_URL =
-  import.meta.env.VITE_SUPABASE_URL || "https://yxypdewnhpclawdsjhed.supabase.co";
+  import.meta.env.VITE_SUPABASE_URL || "https://tmovjmitaxgzondtojbf.supabase.co";
 const SUPABASE_ANON_KEY =
   import.meta.env.VITE_SUPABASE_ANON_KEY ||
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl4eXBkZXduaHBjbGF3ZHNqaGVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1MDE5OTAsImV4cCI6MjA5NDA3Nzk5MH0.sVqN8BlrjybDJk1yKTlvSQz4NEwMNITvi0o8x_9Ec-w";
