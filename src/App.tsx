@@ -40,7 +40,11 @@ function SearchBar({ query, onChange }: SearchBarProps) {
   }, []);
 
   return (
-    <div
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        inputRef.current?.blur();
+      }}
       className="flex w-full items-center gap-2 rounded-3xl border border-white/10 bg-[#2f2f2f]
                  px-4 py-3 shadow-sm transition-colors focus-within:border-white/25 focus-within:bg-[#333333]"
     >
@@ -53,7 +57,7 @@ function SearchBar({ query, onChange }: SearchBarProps) {
         className="flex-1 bg-transparent text-sm text-[#ececec] placeholder:text-white/40 focus:outline-none"
       />
       <button
-        onClick={(e) => (e.currentTarget as HTMLButtonElement).blur()}
+        type="submit"
         disabled={!query.trim()}
         aria-label="Найти"
         className={`
@@ -68,7 +72,7 @@ function SearchBar({ query, onChange }: SearchBarProps) {
       >
         <ArrowUp size={16} strokeWidth={2.5} />
       </button>
-    </div>
+    </form>
   );
 }
 
