@@ -88,7 +88,7 @@ export default function App() {
   const [remotePlaces, setRemotePlaces] = useState<Place[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
-  const [sessionId, setSessionId] = useState<string | null>(null);
+  const sessionIdRef = useRef<string | null>(null);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const activeCategory = searchParams.get("category");
@@ -109,7 +109,7 @@ export default function App() {
 
     const timeout = window.setTimeout(() => {
       placesApi
-        .search(trimmed, "ru", sessionId, places)
+        .search(trimmed, "ru", sessionIdRef.current, places)
         .then((result) => {
           if (cancelled) return;
           const ranked = result.places?.length
@@ -118,7 +118,7 @@ export default function App() {
               ? [result.place]
               : [];
           setRemotePlaces(ranked);
-          setSessionId(result.session_id ?? sessionId);
+          sessionIdRef.current = result.session_id ?? sessionIdRef.current;
         })
         .catch((err: unknown) => {
           if (cancelled) return;
@@ -138,7 +138,7 @@ export default function App() {
       cancelled = true;
       window.clearTimeout(timeout);
     };
-  }, [query, places, sessionId]);
+  }, [query, places]);
 
   const localFilteredPlaces = useMemo(() => {
     return applyCategoryFilter(
