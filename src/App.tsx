@@ -4,6 +4,7 @@ import { ArrowUp, Search, MapPin } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Layout } from "./Layout";
 import { usePlaces } from "./hooks/usePlaces";
+import { placesApi } from "./api/index";
 import type { Place } from "./api/index";
 import { CATEGORIES, SUGGESTIONS } from "./constants";
 
@@ -21,6 +22,11 @@ function matchesQuery(place: Place, query: string): boolean {
     .join(" ")
     .toLowerCase();
   return haystack.includes(q);
+}
+
+function applyCategoryFilter(places: Place[], category: string | null): Place[] {
+  if (!category) return places;
+  return places.filter((place) => place.category === category);
 }
 
 type SearchBarProps = {
@@ -79,26 +85,86 @@ function SearchBar({ query, onChange }: SearchBarProps) {
 export default function App() {
   const { places, loading, error } = usePlaces();
   const [query, setQuery] = useState("");
+  const [remotePlaces, setRemotePlaces] = useState<Place[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const activeCategory = searchParams.get("category");
 
-  const filteredPlaces = useMemo(() => {
-    return (places ?? []).filter(
-      (p) =>
-        matchesQuery(p, query) &&
-        (!activeCategory || p.category === activeCategory)
+  useEffect(() => {
+    const trimmed = query.trim();
+
+    if (!trimmed) {
+      setRemotePlaces([]);
+      setSearchLoading(false);
+      setSearchError(null);
+      return;
+    }
+
+    let cancelled = false;
+    setSearchLoading(true);
+    setSearchError(null);
+
+    const timeout = window.setTimeout(() => {
+      placesApi
+        .search(trimmed, "ru", sessionId, places)
+        .then((result) => {
+          if (cancelled) return;
+          const ranked = result.places?.length
+            ? result.places
+            : result.place
+              ? [result.place]
+              : [];
+          setRemotePlaces(ranked);
+          setSessionId(result.session_id ?? sessionId);
+        })
+        .catch((err: unknown) => {
+          if (cancelled) return;
+          setRemotePlaces([]);
+          setSearchError(
+            err instanceof Error
+              ? err.message
+              : "Не удалось выполнить поиск. Показываю локальные совпадения."
+          );
+        })
+        .finally(() => {
+          if (!cancelled) setSearchLoading(false);
+        });
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [query, places, sessionId]);
+
+  const localFilteredPlaces = useMemo(() => {
+    return applyCategoryFilter(
+      (places ?? []).filter((place) => matchesQuery(place, query)),
+      activeCategory
     );
   }, [places, query, activeCategory]);
+
+  const filteredPlaces = useMemo(() => {
+    if (!query.trim()) return localFilteredPlaces;
+    const ranked = remotePlaces.length > 0 ? remotePlaces : localFilteredPlaces;
+    return applyCategoryFilter(ranked, activeCategory);
+  }, [query, remotePlaces, localFilteredPlaces, activeCategory]);
 
   const activeCategoryLabel = CATEGORIES.find(
     (c) => c.value === activeCategory
   )?.label;
 
   const isSearching = query.trim().length > 0 || !!activeCategory;
+  const isResultsLoading = loading || searchLoading;
+  const visibleError = searchError || error;
 
   const handleClear = () => {
     setQuery("");
+    setRemotePlaces([]);
+    setSearchError(null);
     navigate("/");
   };
 
@@ -168,27 +234,33 @@ export default function App() {
           </button>
         </div>
 
+        {searchError && remotePlaces.length === 0 && localFilteredPlaces.length > 0 && (
+          <p className="mt-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-xs text-white/45">
+            Backend-поиск временно недоступен. Показываю локальные совпадения.
+          </p>
+        )}
+
         <div className="mt-3 divide-y divide-white/10 overflow-hidden rounded-2xl border border-white/10">
-          {loading && (
+          {isResultsLoading && (
             <p className="px-4 py-6 text-center text-sm text-white/40">
               Загружаю заведения...
             </p>
           )}
 
-          {error && (
+          {!isResultsLoading && visibleError && filteredPlaces.length === 0 && (
             <p className="px-4 py-6 text-center text-sm text-white/60">
-              {error}
+              {visibleError}
             </p>
           )}
 
-          {!loading && !error && filteredPlaces.length === 0 && (
+          {!isResultsLoading && !visibleError && filteredPlaces.length === 0 && (
             <p className="px-4 py-6 text-center text-sm text-white/40">
               Ничего не найдено. Попробуйте другой запрос.
             </p>
           )}
 
-          {!loading &&
-            !error &&
+          {!isResultsLoading &&
+            filteredPlaces.length > 0 &&
             (filteredPlaces ?? []).map((place) => (
               <button
                 key={place.id}
