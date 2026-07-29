@@ -29,7 +29,7 @@ export interface VendorPlaceInput {
   tags: string[];
   lat: number | null;
   lng: number | null;
-  two_gis_url: string;      
+  two_gis_url: string;
   avg_check_kzt: number | null;
   has_outlets: boolean;
   has_wifi: boolean;
@@ -39,6 +39,7 @@ export interface SearchResult {
   matched: boolean;
   rec: string;
   place: Place | null;
+  places?: Place[];
   session_id?: string;
 }
 
@@ -113,7 +114,7 @@ export const placesApi = {
     if (idempotencyKey) {
       extraHeaders["X-Idempotency-Key"] = idempotencyKey;
     }
-    return req("/api/v1/vendor/place", {   
+    return req("/api/v1/vendor/place", {
       method: "POST",
       body: JSON.stringify(data),
       headers: extraHeaders,
