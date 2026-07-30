@@ -5,8 +5,6 @@ import { useState, useEffect, useCallback } from "react";
 import { placesApi, ApiError } from "../api/index";
 import type { Place } from "../api/index";
 
-const LOCAL_KEY = "vizit_local_places";
-
 export function usePlaces() {
   const [places, setPlaces] = useState<Place[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -15,25 +13,13 @@ export function usePlaces() {
   const refetch = useCallback(() => {
     setLoading(true);
     setError(null);
+    // placesApi.list() already reads the local fallback storage itself
+    // (no real "list all places" endpoint exists on the backend yet) —
+    // no need to merge/dedupe against localStorage again here.
     placesApi
       .list()
       .then((data: Place[]) => {
-        // Merge remote places with locally added places stored in localStorage.
-        try {
-          const raw = localStorage.getItem(LOCAL_KEY);
-          if (raw) {
-            const local: Place[] = JSON.parse(raw);
-            // mark local entries so UI can prioritise them
-            const localMarked = local.map((p) => ({ ...p, __local: true } as unknown as Place));
-            // Dedupe by slug: prefer localMarked when slug collides
-            const remoteFiltered = data.filter((r) => !localMarked.some((l) => l.slug === r.slug));
-            setPlaces([...localMarked, ...remoteFiltered]);
-          } else {
-            setPlaces(data);
-          }
-        } catch (e) {
-          setPlaces(data);
-        }
+        setPlaces(data);
         setLoading(false);
       })
       .catch((err: unknown) => {
