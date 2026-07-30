@@ -41,19 +41,17 @@ function getChatAnswer(query: string, places: Place[], userLocation?: { lat: num
   });
 
   if (exactMatch.length > 0) {
-    // Prioritise local additions and (if available) by proximity
+    // usePlaces() now returns only local-fallback places (no real "list"
+    // endpoint exists on the backend), so there's no local-vs-remote
+    // distinction left to prioritise — just sort by proximity.
     const scored = exactMatch.map((p) => {
-      const isLocal = (p as any).__local ? 1 : 0;
       let dist = Number.POSITIVE_INFINITY;
       if (userLocation && p.lat != null && p.lng != null) {
         dist = haversine(userLocation.lat, userLocation.lng, p.lat, p.lng);
       }
-      return { p, isLocal, dist };
+      return { p, dist };
     });
-    scored.sort((a, b) => {
-      if (a.isLocal !== b.isLocal) return b.isLocal - a.isLocal; // local first
-      return a.dist - b.dist; // closer first
-    });
+    scored.sort((a, b) => a.dist - b.dist);
     const answers = scored.slice(0, 5).map((s) => formatPlace(s.p)).join("\n");
     return `Нашёл подходящие места по запросу «${query}»:\n${answers}`;
   }
@@ -76,8 +74,9 @@ export default function ChatPage() {
     if (!trimmed) return;
     setHistory((prev) => [...prev, { role: "user", text: trimmed }]);
 
-    // Prepare local places to include in the search request (prefer local marked places)
-    const localPlaces = places.filter((p) => (p as any).__local).slice(0, 12);
+    // usePlaces() returns only local-fallback places (no real "list"
+    // endpoint exists on the backend), so all of them are eligible here.
+    const localPlaces = places.slice(0, 12);
 
     try {
       const res = await placesApi.search(trimmed, "ru", null, localPlaces as Place[]);
