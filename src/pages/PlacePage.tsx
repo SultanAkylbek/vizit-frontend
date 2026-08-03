@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { ExternalLink, MapPin } from "lucide-react";
 import { Layout } from "../Layout";
 import type { Place } from "../api/index";
+import { mapBackendPlace } from "../api/placeMapper";
 import { useRecentPlaces } from "../hooks/useRecentPlaces";
 import { normalizeTag } from "../geo/tags";
 
@@ -46,8 +47,8 @@ export default function PlacePage({ slug }: PlacePageProps) {
         if (res.ok) return res.json();
         return Promise.reject({ url: primaryUrl, status: res.status });
       })
-      .then((data: Place) => {
-        setPlace(data);
+      .then((data: unknown) => {
+        setPlace(mapBackendPlace(data));
         setStatus("ok");
       })
       .catch((firstErr) => {
@@ -58,8 +59,8 @@ export default function PlacePage({ slug }: PlacePageProps) {
             if (res.ok) return res.json();
             return Promise.reject({ url: fallbackUrl, status: res.status });
           })
-          .then((data: Place) => {
-            setPlace(data);
+          .then((data: unknown) => {
+            setPlace(mapBackendPlace(data));
             setStatus("ok");
           })
           .catch((secondErr) => {
@@ -70,7 +71,7 @@ export default function PlacePage({ slug }: PlacePageProps) {
                 const arr = JSON.parse(raw) as any[];
                 const found = arr.find((p) => p.slug === cleanSlug || p.id === cleanSlug || p.slug === slug);
                 if (found) {
-                  setPlace(found as Place);
+                  setPlace(mapBackendPlace(found));
                   setStatus("ok");
                   return;
                 }
