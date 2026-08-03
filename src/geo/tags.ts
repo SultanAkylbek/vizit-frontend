@@ -591,7 +591,7 @@ const EXTRA_TAGS: TagDefinition[] = [
     id: "pet_friendly",
     category: "extra",
     label: { ru: "Pet friendly", en: "Pet friendly" },
-    synonyms: ["pet friendly", "pet-friendly", "можно с животными", "можно с питомцами", "с животными"],
+    synonyms: ["pet friendly", "pet-friendly", "можно с животными", "можно с питомцами", "можно с собакой", "можно с собаками", "с животными"],
     icon: PawPrint,
     schema: [{ kind: "amenityFeature", name: "Pet friendly" }],
   },
