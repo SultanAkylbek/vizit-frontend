@@ -5,6 +5,13 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://vizit-backend-vdt
 const LOCAL_PLACES_KEY = "vizit_local_places";
 const LOCAL_OFFERS_KEY = "vizit_local_offers";
 
+export interface PlaceGeoData {
+  faq?: { question: string; answer: string }[];
+  review_prompts?: string[];
+  schema_org?: Record<string, unknown>;
+  canonical_url?: string;
+}
+
 export interface Place {
   id: string;
   name: string;
@@ -25,6 +32,11 @@ export interface Place {
   website?: string;
   working_hours?: string;
   rating?: number;
+  payment_methods?: string[];
+  instagram_link?: string;
+  social_links?: string[];
+  city?: string;
+  geo_data?: PlaceGeoData;
 }
 
 export interface VendorPlaceInput {
@@ -237,6 +249,8 @@ export interface GeoGenerateResult {
   media_proof_pack: { headline: string; press_release_qa: { question: string; answer: string }[]; target_platforms: string[] };
   action_checklist: string[];
 }
+
+
 
 /** Real request contract of GET /api/v1/geo/schema (query params, not a path id). */
 export interface GeoSchemaInput {
