@@ -1,4 +1,4 @@
-import type { Place } from "./index";
+import type { Place, PlaceGeoData } from "./index";
 
 type RawPlace = Record<string, unknown>;
 
@@ -78,6 +78,32 @@ export function mapBackendPlace(raw: unknown): Place {
   const twoGisUrl = asString(item.two_gis_url, asString(item.source_url, ""));
   const id = asString(item.id, slug);
   const tags = asTags(item.tags);
+  const phone = asString(item.phone, "");
+  const website = asString(item.website, "");
+  const workingHours = asString(item.working_hours, asString(item.opening_hours, ""));
+  const paymentMethodsRaw = item.payment_methods;
+  const paymentMethods = Array.isArray(paymentMethodsRaw)
+    ? paymentMethodsRaw.map((m) => asString(m)).filter(Boolean)
+    : typeof paymentMethodsRaw === "string"
+      ? paymentMethodsRaw.split(",").map((m) => m.trim()).filter(Boolean)
+      : [];
+  const instagramLink = asString(item.instagram_link, asString(item.instagram, ""));
+  const socialLinksRaw = item.social_links;
+  const socialLinks = Array.isArray(socialLinksRaw)
+    ? socialLinksRaw.map((s) => asString(s)).filter(Boolean)
+    : typeof socialLinksRaw === "string"
+      ? socialLinksRaw.split(",").map((s) => s.trim()).filter(Boolean)
+      : [];
+  const city = asString(item.city, district);
+
+  // Try to load GEO data from localStorage if available
+  let geoData: PlaceGeoData | undefined;
+  try {
+    const rawGeo = localStorage.getItem(`vizit_geo_${id}`);
+    if (rawGeo) {
+      geoData = JSON.parse(rawGeo);
+    }
+  } catch (_) {}
 
   return {
     id,
@@ -95,6 +121,15 @@ export function mapBackendPlace(raw: unknown): Place {
     two_gis_url: twoGisUrl || undefined,
     lat,
     lng,
+    phone: phone || undefined,
+    website: website || undefined,
+    working_hours: workingHours || undefined,
+    rating: asNumber(item.rating) ?? asNumber(item.rating_value),
+    payment_methods: paymentMethods.length ? paymentMethods : undefined,
+    instagram_link: instagramLink || undefined,
+    social_links: socialLinks.length ? socialLinks : undefined,
+    city,
+    geo_data: geoData,
   };
 }
 

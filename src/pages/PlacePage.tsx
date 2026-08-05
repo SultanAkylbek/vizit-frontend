@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
-import { ExternalLink, MapPin } from "lucide-react";
+import { Helmet } from "react-helmet-async";
+import { ExternalLink, MapPin, Phone, Globe, Instagram, Clock, CreditCard, Star, MessageSquare } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Layout } from "../Layout";
-import type { Place } from "../api/index";
+import type { Place, PlaceGeoData } from "../api/index";
 import { mapBackendPlace } from "../api/placeMapper";
 import { useRecentPlaces } from "../hooks/useRecentPlaces";
 import { normalizeTag } from "../geo/tags";
@@ -88,43 +90,153 @@ export default function PlacePage({ slug }: PlacePageProps) {
       });
   }, [slug]);
 
-  return (
-    <Layout>
-      <div className="mx-auto max-w-2xl px-4 py-10">
-        {/* User query bubble, right aligned like a chat turn */}
-        <div className="mb-6 flex justify-end">
-          <div className="max-w-[80%] rounded-3xl bg-[#2f2f2f] px-4 py-2.5 text-sm text-[#ececec]">
-            Расскажи про {place?.name ?? slug}
+  if (status !== "ok" || !place) {
+    return (
+      <Layout>
+        <div className="mx-auto max-w-2xl px-4 py-10">
+          <div className="mb-6 flex justify-end">
+            <div className="max-w-[80%] rounded-3xl bg-[#2f2f2f] px-4 py-2.5 text-sm text-[#ececec]">
+              Расскажи про {slug}
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#ececec] text-xs font-semibold text-[#212121]">
+              V
+            </div>
+            <div className="min-w-0 flex-1">
+              {status === "loading" && (
+                <p className="text-sm text-white/40">Ищу заведение...</p>
+              )}
+              {status === "error" && (
+                <div className="flex flex-col gap-2">
+                  <p className="text-sm text-white/60">
+                    Не нашёл заведение «{slug}». Возможно, оно было удалено или
+                    ссылка неверна.
+                  </p>
+                  {debug && (
+                    <pre className="overflow-x-auto rounded-lg border border-white/10 bg-[#2a2a2a] p-3 text-[11px] text-white/40">
+                      {debug.urlTried}
+                    </pre>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
+      </Layout>
+    );
+  }
 
-        {/* AI response */}
-        <div className="flex gap-3">
-          <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#ececec] text-xs font-semibold text-[#212121]">
-            V
+  const canonicalUrl = place.geo_data?.canonical_url || `https://vizit-ai.vercel.app/place/${place.slug}`;
+  const metaTitle = `${place.name} — ${place.category} в ${place.district || place.city || "Астане"} | VIZIT AI`;
+  const metaDescription = place.ambient_description 
+    ? `${place.ambient_description.slice(0, 150)}${place.ambient_description.length > 150 ? "..." : ""}`
+    : `${place.name} — ${place.category}. Адрес: ${place.address}. Телефон: ${place.phone || "не указан"}.`;
+
+  // Build LocalBusiness Schema.org
+  const localBusinessSchema = {
+    "@context": "https://schema.org",
+    "@type": "LocalBusiness",
+    name: place.name,
+    description: place.ambient_description,
+    url: canonicalUrl,
+    image: place.emoji ? undefined : undefined,
+    address: {
+      "@type": "PostalAddress",
+      streetAddress: place.address,
+      addressLocality: place.city || place.district,
+      addressCountry: "KZ",
+    },
+    geo: place.lat && place.lng ? {
+      "@type": "GeoCoordinates",
+      latitude: place.lat,
+      longitude: place.lng,
+    } : undefined,
+    telephone: place.phone,
+    sameAs: [place.website, place.instagram_link, ... (place.social_links || [])].filter(Boolean),
+    openingHoursSpecification: place.working_hours ? {
+      "@type": "OpeningHoursSpecification",
+      opens: place.working_hours.split("-")[0]?.trim() || "09:00",
+      closes: place.working_hours.split("-")[1]?.trim() || "21:00",
+    } : undefined,
+    priceRange: place.avg_check_kzt ? `${place.avg_check_kzt} KZT` : undefined,
+    servesCuisine: place.category,
+    aggregateRating: place.rating ? {
+      "@type": "AggregateRating",
+      ratingValue: place.rating,
+      bestRating: 5,
+    } : undefined,
+  };
+
+  // Build FAQ Schema if available
+  const faqSchema = place.geo_data?.faq && place.geo_data.faq.length > 0 ? {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: place.geo_data.faq.map((faq) => ({
+      "@type": "Question",
+      name: faq.question,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: faq.answer,
+      },
+    })),
+  } : undefined;
+
+  // Build BreadcrumbList Schema
+  const breadcrumbSchema = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Главная", item: "https://vizit-ai.vercel.app/" },
+      { "@type": "ListItem", position: 2, name: "Заведения", item: "https://vizit-ai.vercel.app/businesses" },
+      { "@type": "ListItem", position: 3, name: place.name, item: canonicalUrl },
+    ],
+  };
+
+  return (
+    <>
+      <Helmet>
+        <title>{metaTitle}</title>
+        <meta name="description" content={metaDescription} />
+        <link rel="canonical" href={canonicalUrl} />
+        
+        {/* OpenGraph */}
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content={metaTitle} />
+        <meta property="og:description" content={metaDescription} />
+        <meta property="og:url" content={canonicalUrl} />
+        <meta property="og:locale" content="ru_KZ" />
+        <meta property="og:site_name" content="VIZIT AI" />
+        
+        {/* Twitter Cards */}
+        <meta name="twitter:card" content="summary" />
+        <meta name="twitter:title" content={metaTitle} />
+        <meta name="twitter:description" content={metaDescription} />
+        
+        {/* JSON-LD Schemas */}
+        <script type="application/ld+json">{JSON.stringify(breadcrumbSchema)}</script>
+        <script type="application/ld+json">{JSON.stringify(localBusinessSchema)}</script>
+        {faqSchema && <script type="application/ld+json">{JSON.stringify(faqSchema)}</script>}
+      </Helmet>
+
+      <Layout>
+        <div className="mx-auto max-w-2xl px-4 py-10">
+          {/* User query bubble, right aligned like a chat turn */}
+          <div className="mb-6 flex justify-end">
+            <div className="max-w-[80%] rounded-3xl bg-[#2f2f2f] px-4 py-2.5 text-sm text-[#ececec]">
+              Расскажи про {place.name}
+            </div>
           </div>
 
-          <div className="min-w-0 flex-1">
-            {status === "loading" && (
-              <p className="text-sm text-white/40">Ищу заведение...</p>
-            )}
+          {/* AI response */}
+          <div className="flex gap-3">
+            <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#ececec] text-xs font-semibold text-[#212121]">
+              V
+            </div>
 
-            {status === "error" && (
-              <div className="flex flex-col gap-2">
-                <p className="text-sm text-white/60">
-                  Не нашёл заведение «{slug}». Возможно, оно было удалено или
-                  ссылка неверна.
-                </p>
-                {debug && (
-                  <pre className="overflow-x-auto rounded-lg border border-white/10 bg-[#2a2a2a] p-3 text-[11px] text-white/40">
-                    {debug.urlTried}
-                  </pre>
-                )}
-              </div>
-            )}
-
-            {status === "ok" && place && (
+            <div className="min-w-0 flex-1">
               <div className="flex flex-col gap-4">
+                {/* Header */}
                 <div>
                   <h1 className="flex items-center gap-2 text-lg font-medium text-[#ececec]">
                     {place.emoji && <span>{place.emoji}</span>}
@@ -146,14 +258,22 @@ export default function PlacePage({ slug }: PlacePageProps) {
                       Средний чек: ~{place.avg_check_kzt.toLocaleString("ru-RU")} ₸
                     </p>
                   )}
+                  {place.rating && (
+                    <div className="mt-1 flex items-center gap-1 text-sm text-yellow-500">
+                      <Star size={13} fill="currentColor" />
+                      <span>{place.rating.toFixed(1)}</span>
+                    </div>
+                  )}
                 </div>
 
+                {/* Description */}
                 {place.ambient_description && (
                   <p className="text-[15px] leading-relaxed text-white/85">
                     {place.ambient_description}
                   </p>
                 )}
 
+                {/* Tags */}
                 {(place.tags?.length ?? 0) > 0 && (
                   <div className="flex flex-wrap gap-2">
                     {(place.tags ?? []).map((rawTag) => {
@@ -173,9 +293,62 @@ export default function PlacePage({ slug }: PlacePageProps) {
                   </div>
                 )}
 
-                {/* Action, styled as a follow-up to the AI answer */}
-                {place.two_gis_url && (
-                  <div className="mt-1 flex flex-wrap gap-2">
+                {/* Contacts Section */}
+                <div className="mt-4 space-y-3">
+                  <h2 className="text-sm font-medium text-white/80">Контакты</h2>
+                  
+                  {place.phone && (
+                    <a
+                      href={`tel:${place.phone.replace(/\s/g, "")}`}
+                      className="flex items-center gap-2 text-sm text-white/70 hover:text-white transition-colors"
+                    >
+                      <Phone size={14} className="text-white/40" />
+                      {place.phone}
+                    </a>
+                  )}
+                  
+                  {place.website && (
+                    <a
+                      href={place.website.startsWith("http") ? place.website : `https://${place.website}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-sm text-white/70 hover:text-white transition-colors"
+                    >
+                      <Globe size={14} className="text-white/40" />
+                      {place.website.replace(/^https?:\/\//, "")}
+                    </a>
+                  )}
+                  
+                  {place.instagram_link && (
+                    <a
+                      href={place.instagram_link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-sm text-white/70 hover:text-white transition-colors"
+                    >
+                      <Instagram size={14} className="text-white/40" />
+                      Instagram
+                    </a>
+                  )}
+                  
+                  {place.working_hours && (
+                    <div className="flex items-center gap-2 text-sm text-white/70">
+                      <Clock size={14} className="text-white/40" />
+                      {place.working_hours}
+                    </div>
+                  )}
+                  
+                  {place.payment_methods && place.payment_methods.length > 0 && (
+                    <div className="flex items-start gap-2 text-sm text-white/70">
+                      <CreditCard size={14} className="text-white/40 mt-0.5" />
+                      <span>Принимают: {place.payment_methods.join(", ")}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Action buttons */}
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {place.two_gis_url && (
                     <a
                       href={place.two_gis_url}
                       target="_blank"
@@ -186,13 +359,92 @@ export default function PlacePage({ slug }: PlacePageProps) {
                       Открыть в 2GIS
                       <ExternalLink size={12} />
                     </a>
+                  )}
+                  
+                  {place.website && (
+                    <a
+                      href={place.website.startsWith("http") ? place.website : `https://${place.website}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 rounded-full border border-white/20 bg-[#2a2a2a] px-4 py-2
+                                 text-xs font-medium text-white/80 hover:bg-[#303030] transition-colors"
+                    >
+                      Посетить сайт
+                      <ExternalLink size={12} />
+                    </a>
+                  )}
+                </div>
+
+                {/* Map */}
+                {place.lat && place.lng && (
+                  <div className="mt-4 overflow-hidden rounded-xl border border-white/10">
+                    <iframe
+                      src={`https://www.openstreetmap.org/export/embed.html?bbox=${place.lng - 0.01},${place.lat - 0.01},${place.lng + 0.01},${place.lat + 0.01}&layer=mapnik&marker=${place.lat},${place.lng}`}
+                      width="100%"
+                      height="250"
+                      style={{ border: 0 }}
+                      loading="lazy"
+                      title={`Карта: ${place.name}`}
+                      className="grayscale opacity-80 hover:grayscale-0 hover:opacity-100 transition-all"
+                    />
                   </div>
                 )}
+
+                {/* FAQ Section */}
+                {place.geo_data?.faq && place.geo_data.faq.length > 0 && (
+                  <div className="mt-6">
+                    <h2 className="mb-3 flex items-center gap-2 text-sm font-medium text-white/80">
+                      <MessageSquare size={14} className="text-white/40" />
+                      Часто задаваемые вопросы
+                    </h2>
+                    <div className="space-y-3">
+                      {place.geo_data.faq.map((faq, idx) => (
+                        <details
+                          key={idx}
+                          className="group rounded-xl border border-white/10 bg-[#2a2a2a] p-3"
+                        >
+                          <summary className="cursor-pointer list-none text-sm font-medium text-white/80 group-open:text-white">
+                            {faq.question}
+                          </summary>
+                          <p className="mt-2 text-sm text-white/60 leading-relaxed">
+                            {faq.answer}
+                          </p>
+                        </details>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Review Prompts */}
+                {place.geo_data?.review_prompts && place.geo_data.review_prompts.length > 0 && (
+                  <div className="mt-6">
+                    <h2 className="mb-3 text-sm font-medium text-white/80">Как оставить отзыв</h2>
+                    <div className="space-y-2">
+                      {place.geo_data.review_prompts.slice(0, 3).map((prompt, idx) => (
+                        <div
+                          key={idx}
+                          className="rounded-xl border border-white/10 bg-[#2a2a2a] px-3 py-2 text-sm text-white/60"
+                        >
+                          {prompt}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Breadcrumb navigation */}
+                <nav className="mt-6 text-xs text-white/40">
+                  <Link to="/" className="hover:text-white/70">Главная</Link>
+                  <span className="mx-2">/</span>
+                  <Link to="/businesses" className="hover:text-white/70">Все заведения</Link>
+                  <span className="mx-2">/</span>
+                  <span className="text-white/60">{place.name}</span>
+                </nav>
               </div>
-            )}
+            </div>
           </div>
         </div>
-      </div>
-    </Layout>
+      </Layout>
+    </>
   );
 }
