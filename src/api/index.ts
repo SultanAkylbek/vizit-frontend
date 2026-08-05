@@ -21,6 +21,10 @@ export interface Place {
   two_gis_url?: string;
   lat?: number;
   lng?: number;
+  phone?: string;
+  website?: string;
+  working_hours?: string;
+  rating?: number;
 }
 
 export interface VendorPlaceInput {
@@ -36,6 +40,9 @@ export interface VendorPlaceInput {
   avg_check_kzt: number | null;
   has_outlets: boolean;
   has_wifi: boolean;
+  phone?: string;
+  website?: string;
+  working_hours?: string;
 }
 
 export interface SearchResult {
@@ -186,10 +193,15 @@ export const importApi = {
    * it's actually saved via placesApi.upsertMine.
    */
   fromTwoGis: (twoGisUrl: string): Promise<TwoGisDraft> =>
-    req<unknown>("/api/v1/places/from-2gis", {
+    req<{ place?: unknown }>("/api/v1/places/from-2gis", {
       method: "POST",
       body: JSON.stringify({ two_gis_url: twoGisUrl, url: twoGisUrl }),
-    }).then(mapBackendPlace),
+    }).then((res) => {
+      if (!res || !res.place) {
+        throw new ApiError(502, "2GIS не вернул данные по этой ссылке");
+      }
+      return mapBackendPlace(res.place);
+    }),
 };
 
 /** Real request contract of POST /api/v1/geo/generate (BusinessInput). */
