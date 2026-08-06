@@ -79,6 +79,15 @@ export function mapBackendPlace(raw: unknown): Place {
   const id = asString(item.id, slug);
   const tags = asTags(item.tags);
 
+  // Extract social links (Instagram, etc.) from social_links array or individual fields
+  let instagram: string | undefined;
+  const socialLinks = item.social_links;
+  if (Array.isArray(socialLinks)) {
+    instagram = socialLinks.find((link) => typeof link === "string" && link.includes("instagram.com")) as string | undefined;
+  } else if (typeof item.instagram === "string") {
+    instagram = item.instagram;
+  }
+
   return {
     id,
     name,
@@ -95,6 +104,19 @@ export function mapBackendPlace(raw: unknown): Place {
     two_gis_url: twoGisUrl || undefined,
     lat,
     lng,
+    phone: asString(item.phone) || undefined,
+    website: asString(item.website) || undefined,
+    instagram,
+    working_hours: asString(item.opening_hours, asString(item.working_hours)) || undefined,
+    rating: asNumber(item.rating),
+    usp: asString(item.usp) || undefined,
+    payment_methods: Array.isArray(item.payment_methods) ? item.payment_methods.map(String) : undefined,
+    how_to_get_there: asString(item.how_to_get_there) || undefined,
+    who_is_it_for: asString(item.who_is_it_for) || undefined,
+    whats_nearby: asString(item.whats_nearby) || undefined,
+    faq: Array.isArray(item.faq) ? item.faq.map((f) => ({ question: String(f.question || ""), answer: String(f.answer || "") })) : undefined,
+    tips: asTags(item.tips) || undefined,
+    local_guides: asTags(item.local_guides) || undefined,
   };
 }
 

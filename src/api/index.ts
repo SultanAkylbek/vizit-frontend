@@ -23,8 +23,17 @@ export interface Place {
   lng?: number;
   phone?: string;
   website?: string;
+  instagram?: string;
   working_hours?: string;
   rating?: number;
+  usp?: string;
+  payment_methods?: string[];
+  how_to_get_there?: string;
+  who_is_it_for?: string;
+  whats_nearby?: string;
+  faq?: { question: string; answer: string }[];
+  tips?: string[];
+  local_guides?: string[];
 }
 
 export interface VendorPlaceInput {
