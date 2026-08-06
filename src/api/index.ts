@@ -10,6 +10,8 @@ export interface Place {
   name: string;
   slug: string;
   category: string;
+  niche?: string;
+  city?: string;
   district: string;
   address: string;
   emoji?: string;
@@ -23,8 +25,30 @@ export interface Place {
   lng?: number;
   phone?: string;
   website?: string;
+  instagram?: string;
   working_hours?: string;
   rating?: number;
+  payment_methods?: string[];
+  usp?: string;
+  features?: string[];
+  target_audience?: string;
+  nearby_landmarks?: string[];
+  how_to_get_there?: string;
+  faq?: { question: string; answer: string }[];
+  tips?: string[];
+  local_guides?: string[];
+  comparison_sections?: { title: string; content: string }[];
+  page_sections?: { title: string; content: string }[];
+  ai_context?: string;
+  business_knowledge?: string;
+  entity_json?: Record<string, unknown>;
+  semantic_relations?: string[];
+  search_intents?: string[];
+  source_snippets?: string[];
+  recommendation_snippets?: string[];
+  conversational_answers?: { question: string; answer: string }[];
+  breadcrumb?: { name: string; url?: string }[];
+  canonical_url?: string;
 }
 
 export interface VendorPlaceInput {
