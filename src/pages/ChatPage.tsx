@@ -1,12 +1,13 @@
 import { useState, type FormEvent } from "react";
 import { Layout } from "../Layout";
 import { usePlaces } from "../hooks/usePlaces";
-import { placesApi } from "../api/index";
-import type { Place } from "../api/index";
+import { placesApi, geoApi } from "../api/index";
+import type { Place, SearchResult } from "../api/index";
 
 function formatPlace(place: Place) {
   const tags = place.tags?.length ? ` (${place.tags.join(", ")})` : "";
-  return `• ${place.name}${tags}${place.address ? ` — ${place.address}` : ""}`;
+  const category = place.category ? `[${place.category}] ` : "";
+  return `• ${category}${place.name}${tags}${place.address ? ` — ${place.address}` : ""}`;
 }
 
 function haversine(lat1: number, lon1: number, lat2: number, lon2: number) {
@@ -17,6 +18,53 @@ function haversine(lat1: number, lon1: number, lat2: number, lon2: number) {
   const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
+}
+
+async function getEnrichedPlaceAnswer(place: Place): Promise<string> {
+  // Try to get full GEO data if available
+  let enrichedPlace = place;
+  try {
+    // Attempt to fetch full GEO package for this business
+    const geoResult = await geoApi.generate({
+      business_name: place.name,
+      niche: place.category || place.niche || "business",
+      city: place.city || place.district || "Астана",
+      district: place.district,
+      usp: place.usp || place.ambient_description?.slice(0, 100) || place.name,
+      address_2gis_url: place.two_gis_url || place.address,
+      phone: place.phone,
+      website: place.website,
+      opening_hours: place.working_hours ? [place.working_hours] : undefined,
+      payment_methods: place.payment_methods,
+      latitude: place.lat,
+      longitude: place.lng,
+    });
+    
+    if (geoResult.generated_content) {
+      enrichedPlace = {
+        ...place,
+        ambient_description: geoResult.generated_content.about || place.ambient_description,
+        usp: geoResult.generated_content.usp?.[0] || place.usp,
+        faq: geoResult.generated_content.faq || place.faq,
+        tips: geoResult.generated_content.tips || place.tips,
+      };
+    }
+  } catch (e) {
+    // Fallback to basic place data if GEO generation fails
+    console.warn("GEO generation failed for chat answer:", e);
+  }
+
+  const lines: string[] = [];
+  lines.push(`📍 ${enrichedPlace.name}`);
+  if (enrichedPlace.category) lines.push(`Категория: ${enrichedPlace.category}`);
+  if (enrichedPlace.address) lines.push(`Адрес: ${enrichedPlace.address}`);
+  if (enrichedPlace.ambient_description) lines.push(`\n${enrichedPlace.ambient_description}`);
+  if (enrichedPlace.two_gis_url) lines.push(`\n🗺️ 2GIS: ${enrichedPlace.two_gis_url}`);
+  if (enrichedPlace.phone) lines.push(`📞 Телефон: ${enrichedPlace.phone}`);
+  if (enrichedPlace.website) lines.push(`🌐 Сайт: ${enrichedPlace.website}`);
+  if (enrichedPlace.working_hours) lines.push(`⏰ Часы работы: ${enrichedPlace.working_hours}`);
+  
+  return lines.join("\n");
 }
 
 function getChatAnswer(query: string, places: Place[], userLocation?: { lat: number; lng: number } | null) {
@@ -41,9 +89,6 @@ function getChatAnswer(query: string, places: Place[], userLocation?: { lat: num
   });
 
   if (exactMatch.length > 0) {
-    // usePlaces() now returns only local-fallback places (no real "list"
-    // endpoint exists on the backend), so there's no local-vs-remote
-    // distinction left to prioritise — just sort by proximity.
     const scored = exactMatch.map((p) => {
       let dist = Number.POSITIVE_INFINITY;
       if (userLocation && p.lat != null && p.lng != null) {
@@ -52,8 +97,11 @@ function getChatAnswer(query: string, places: Place[], userLocation?: { lat: num
       return { p, dist };
     });
     scored.sort((a, b) => a.dist - b.dist);
-    const answers = scored.slice(0, 5).map((s) => formatPlace(s.p)).join("\n");
-    return `Нашёл подходящие места по запросу «${query}»:\n${answers}`;
+    
+    // Return just the name and 2GIS link for now - full enrichment happens asynchronously
+    const topPlace = scored[0].p;
+    const twoGisLink = topPlace.two_gis_url ? `\n\n🗺️ Открыть в 2GIS: ${topPlace.two_gis_url}` : "";
+    return `Нашёл место: ${topPlace.name}${topPlace.address ? ` (${topPlace.address})` : ""}.${twoGisLink}\n\nОткройте страницу заведения для подробной информации.`;
   }
 
   const fallback = places.slice(0, 5).map(formatPlace).join("\n");
@@ -65,34 +113,42 @@ export default function ChatPage() {
   const [query, setQuery] = useState("");
   const [userLoc, setUserLoc] = useState<{ lat: number; lng: number } | null>(null);
   const [history, setHistory] = useState<Array<{ role: "user" | "assistant"; text: string }>>([]);
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  const canSend = query.trim().length > 0 && !loading;
+  const canSend = query.trim().length > 0 && !loading && !isProcessing;
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const trimmed = query.trim();
     if (!trimmed) return;
+    
     setHistory((prev) => [...prev, { role: "user", text: trimmed }]);
+    setIsProcessing(true);
 
-    // usePlaces() returns only local-fallback places (no real "list"
-    // endpoint exists on the backend), so all of them are eligible here.
     const localPlaces = places.slice(0, 12);
 
     try {
       const res = await placesApi.search(trimmed, "ru", null, localPlaces as Place[]);
-      if (res && typeof res.rec === "string" && res.rec.trim()) {
+      
+      // If backend returns a specific place with full data
+      if (res.place) {
+        const answer = await getEnrichedPlaceAnswer(res.place);
+        setHistory((prev) => [...prev, { role: "assistant", text: answer }]);
+      } else if (res && typeof res.rec === "string" && res.rec.trim()) {
+        // Backend returned a recommendation text
         setHistory((prev) => [...prev, { role: "assistant", text: res.rec }]);
       } else {
-        // fallback to client-side answer
+        // Fallback to client-side answer
         const answer = getChatAnswer(trimmed, places, userLoc);
         setHistory((prev) => [...prev, { role: "assistant", text: answer }]);
       }
     } catch (e) {
       const answer = getChatAnswer(trimmed, places, userLoc);
       setHistory((prev) => [...prev, { role: "assistant", text: answer }]);
+    } finally {
+      setIsProcessing(false);
+      setQuery("");
     }
-
-    setQuery("");
   };
 
   const handleUseLocation = () => {
@@ -117,10 +173,13 @@ export default function ChatPage() {
             <p className="text-sm text-white/40">Загружаю каталог заведений...</p>
           )}
           {error && <p className="text-sm text-white/60">{error}</p>}
+          {isProcessing && (
+            <p className="text-sm text-white/40">Ищу информацию...</p>
+          )}
 
-          {history.length === 0 && !loading && !error && (
+          {history.length === 0 && !loading && !error && !isProcessing && (
             <div className="rounded-2xl border border-white/10 bg-[#2a2a2a] p-4 text-sm text-white/60">
-              Спросите, например, «где кофе рядом с Нур-Султан» или «какое кафе с розетками есть в Есиле».
+              Спросите, например, «где кофе рядом с Байтереком» или «какое кафе с розетками есть в Есиле».
             </div>
           )}
 
