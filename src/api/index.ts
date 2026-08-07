@@ -67,6 +67,40 @@ export interface VendorPlaceInput {
   phone?: string;
   website?: string;
   working_hours?: string;
+  payment_methods?: string[];
+  usp?: string;
+  features?: string[];
+  target_audience?: string;
+  nearby_landmarks?: string[];
+  how_to_get_there?: string;
+  faq?: { question: string; answer: string }[];
+  tips?: string[];
+}
+
+export interface BusinessFacts {
+  business_name: string;
+  niche: string;
+  city: string;
+  district?: string;
+  address_2gis_url: string;
+  phone?: string;
+  website?: string;
+  instagram?: string;
+  working_hours?: string;
+  payment_methods?: string[];
+  description?: string;
+  usp?: string;
+  features?: string[];
+}
+
+export interface GeneratedContent {
+  about: string;
+  usp: string[];
+  offerings: string[];
+  audience: string[];
+  faq: { question: string; answer: string }[];
+  tips: string[];
+  summary: string;
 }
 
 export interface SearchResult {
@@ -262,6 +296,22 @@ export interface GeoGenerateResult {
   action_checklist: string[];
 }
 
+/** Extended GEO result with full page content generation. */
+export interface GeoGenerateResultExtended extends GeoGenerateResult {
+  generated_content?: {
+    about: string;
+    usp: string[];
+    offerings: string[];
+    audience: string[];
+    faq: { question: string; answer: string }[];
+    tips: string[];
+    how_to_get_there?: string;
+    nearby_landmarks?: string[];
+    working_hours?: string;
+    payment_methods?: string[];
+  };
+}
+
 /** Real request contract of GET /api/v1/geo/schema (query params, not a path id). */
 export interface GeoSchemaInput {
   business_name: string;
@@ -283,7 +333,7 @@ export interface GeoSchemaInput {
 
 export const geoApi = {
   /** Real endpoint: POST /api/v1/geo/generate (BusinessInput -> GeoPackageResponse). */
-  generate: (input: GeoGenerateInput): Promise<GeoGenerateResult> =>
+  generate: (input: GeoGenerateInput): Promise<GeoGenerateResultExtended> =>
     req("/api/v1/geo/generate", {
       method: "POST",
       body: JSON.stringify(input),
