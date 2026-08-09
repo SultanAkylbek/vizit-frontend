@@ -79,20 +79,13 @@ export function mapBackendPlace(raw: unknown): Place {
   const id = asString(item.id, slug);
   const tags = asTags(item.tags);
 
-  // Extract social links (Instagram, etc.) from social_links array or individual fields
-  let instagram: string | undefined;
-  const socialLinks = item.social_links;
-  if (Array.isArray(socialLinks)) {
-    instagram = socialLinks.find((link) => typeof link === "string" && link.includes("instagram.com")) as string | undefined;
-  } else if (typeof item.instagram === "string") {
-    instagram = item.instagram;
-  }
-
   return {
     id,
     name,
     slug,
     category,
+    niche: asString(item.niche, undefined) || undefined,
+    city: asString(item.city, undefined) || undefined,
     district,
     address,
     emoji: asString(item.emoji, categoryEmoji(category)),
@@ -104,19 +97,32 @@ export function mapBackendPlace(raw: unknown): Place {
     two_gis_url: twoGisUrl || undefined,
     lat,
     lng,
-    phone: asString(item.phone) || undefined,
-    website: asString(item.website) || undefined,
-    instagram,
-    working_hours: asString(item.opening_hours, asString(item.working_hours)) || undefined,
+    phone: asString(item.phone, undefined) || undefined,
+    website: asString(item.website, undefined) || undefined,
+    instagram: asString(item.instagram, undefined) || undefined,
+    working_hours: asString(item.working_hours, undefined) || undefined,
     rating: asNumber(item.rating),
-    usp: asString(item.usp) || undefined,
     payment_methods: Array.isArray(item.payment_methods) ? item.payment_methods.map(String) : undefined,
-    how_to_get_there: asString(item.how_to_get_there) || undefined,
-    who_is_it_for: asString(item.who_is_it_for) || undefined,
-    whats_nearby: asString(item.whats_nearby) || undefined,
-    faq: Array.isArray(item.faq) ? item.faq.map((f) => ({ question: String(f.question || ""), answer: String(f.answer || "") })) : undefined,
-    tips: asTags(item.tips) || undefined,
-    local_guides: asTags(item.local_guides) || undefined,
+    usp: asString(item.usp, undefined) || undefined,
+    features: Array.isArray(item.features) ? item.features.map(String) : undefined,
+    target_audience: asString(item.target_audience, undefined) || undefined,
+    nearby_landmarks: Array.isArray(item.nearby_landmarks) ? item.nearby_landmarks.map(String) : undefined,
+    how_to_get_there: asString(item.how_to_get_there, undefined) || undefined,
+    faq: Array.isArray(item.faq) ? item.faq.map((f: any) => ({ question: String(f.question || ""), answer: String(f.answer || "") })) : undefined,
+    tips: Array.isArray(item.tips) ? item.tips.map(String) : undefined,
+    local_guides: Array.isArray(item.local_guides) ? item.local_guides.map(String) : undefined,
+    comparison_sections: Array.isArray(item.comparison_sections) ? item.comparison_sections.map((c: any) => ({ title: String(c.title || ""), content: String(c.content || "") })) : undefined,
+    page_sections: Array.isArray(item.page_sections) ? item.page_sections.map((p: any) => ({ title: String(p.title || ""), content: String(p.content || "") })) : undefined,
+    ai_context: asString(item.ai_context, undefined) || undefined,
+    business_knowledge: asString(item.business_knowledge, undefined) || undefined,
+    entity_json: item.entity_json && typeof item.entity_json === "object" ? item.entity_json as Record<string, unknown> : undefined,
+    semantic_relations: Array.isArray(item.semantic_relations) ? item.semantic_relations.map(String) : undefined,
+    search_intents: Array.isArray(item.search_intents) ? item.search_intents.map(String) : undefined,
+    source_snippets: Array.isArray(item.source_snippets) ? item.source_snippets.map(String) : undefined,
+    recommendation_snippets: Array.isArray(item.recommendation_snippets) ? item.recommendation_snippets.map(String) : undefined,
+    conversational_answers: Array.isArray(item.conversational_answers) ? item.conversational_answers.map((c: any) => ({ question: String(c.question || ""), answer: String(c.answer || "") })) : undefined,
+    breadcrumb: Array.isArray(item.breadcrumb) ? item.breadcrumb.map((b: any) => ({ name: String(b.name || ""), url: b.url ? String(b.url) : undefined })) : undefined,
+    canonical_url: asString(item.canonical_url, undefined) || undefined,
   };
 }
 
