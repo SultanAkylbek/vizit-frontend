@@ -14,6 +14,8 @@ import { PlaceDirections } from "../components/place/PlaceDirections";
 import { PlaceFAQ } from "../components/place/PlaceFAQ";
 import { PlaceTips } from "../components/place/PlaceTips";
 import { PlaceAdditional } from "../components/place/PlaceAdditional";
+import { PlaceNearby } from "../components/place/PlaceNearby";
+import { PlaceSEO } from "../components/place/PlaceSEO";
 
 // Same backend as api/index.ts. Kept as a local constant (not import.meta.env)
 // because that's how the original slug-lookup fix was wired.
@@ -41,6 +43,15 @@ export default function PlacePage({ slug }: PlacePageProps) {
   useEffect(() => {
     if (status === "ok" && place?.slug) {
       pushRecentPlace({ slug: place.slug, name: place.name, district: place.district });
+      
+      // Analytics: page view
+      if (typeof window !== "undefined" && (window as any).gtag) {
+        (window as any).gtag("event", "page_view", {
+          event_category: "engagement",
+          event_label: place.slug,
+          value: 1
+        });
+      }
     }
   }, [status, place, pushRecentPlace]);
 
@@ -99,6 +110,7 @@ export default function PlacePage({ slug }: PlacePageProps) {
 
   return (
     <Layout>
+      {status === "ok" && place && <PlaceSEO place={place} />}
       <div className="mx-auto max-w-5xl px-4 py-10">
         {status === "loading" && (
           <p className="text-sm text-white/40">Загрузка информации о заведении...</p>
@@ -127,6 +139,7 @@ export default function PlacePage({ slug }: PlacePageProps) {
             <PlaceHours place={place} />
             <PlacePayment place={place} />
             <PlaceDirections place={place} />
+            <PlaceNearby place={place} />
             <PlaceFAQ place={place} />
             <PlaceTips place={place} />
             <PlaceAdditional place={place} />
