@@ -226,15 +226,63 @@ export const placesApi = {
     };
   },
 
-  /** No real save endpoint exists — fallback: persist locally only, so
-   * the rest of the app (search/chat/place page) still sees the place. */
+  /**
+   * NEW: Create/update business via backend GEO pipeline.
+   * Calls POST /api/v1/geo/import which:
+   * 1. Saves basic business info
+   * 2. Runs Grok AI generation
+   * 3. Returns full Business Entity with generated_content
+   * 4. Persists to database (not just localStorage)
+   */
   upsertMine: (data: VendorPlaceInput, idempotencyKey?: string): Promise<{ status: string; place_id: string }> => {
-    const place_id = idempotencyKey || genId();
-    const mapped = mapBackendPlace({ ...data, id: place_id });
-    const filtered = readLocalPlaces().filter((p) => (p as { slug?: string })?.slug !== mapped.slug);
-    filtered.unshift(mapped);
-    writeLocalPlaces(filtered);
-    return Promise.resolve({ status: "saved_locally", place_id });
+    // Try backend import first - this will trigger Grok generation
+    const importPayload: GeoImportInput = {
+      business_name: data.name,
+      niche: data.category,
+      city: "Астана",
+      address_2gis_url: data.two_gis_url || data.address,
+      district: data.district,
+      phone: data.phone,
+      website: data.website,
+      usp: data.usp || data.ambient_description?.slice(0, 300),
+      ambient_description: data.ambient_description,
+      tags: data.tags,
+      payment_methods: data.payment_methods,
+      features: data.features,
+      target_audience: data.target_audience,
+      avg_check_kzt: data.avg_check_kzt ?? undefined,
+      latitude: data.lat ?? undefined,
+      longitude: data.lng ?? undefined,
+      opening_hours: data.working_hours ? [data.working_hours] : undefined,
+      accepts_reservations: undefined,
+      lang: "ru",
+    };
+
+    return geoApi.import(importPayload)
+      .then((result) => {
+        // Backend returned full entity with generated_content
+        // Also save to localStorage as cache
+        const place = mapBackendPlace({
+          ...result,
+          ...result.generated_content,
+          id: result.business_id,
+          slug: result.slug,
+        });
+        const filtered = readLocalPlaces().filter((p) => (p as { slug?: string })?.slug !== place.slug);
+        filtered.unshift(place);
+        writeLocalPlaces(filtered);
+        return { status: "saved_backend", place_id: result.business_id };
+      })
+      .catch((err) => {
+        // Fallback to localStorage only if backend fails
+        console.warn("Backend import failed, falling back to localStorage:", err);
+        const place_id = idempotencyKey || genId();
+        const mapped = mapBackendPlace({ ...data, id: place_id });
+        const filtered = readLocalPlaces().filter((p) => (p as { slug?: string })?.slug !== mapped.slug);
+        filtered.unshift(mapped);
+        writeLocalPlaces(filtered);
+        return { status: "saved_locally", place_id };
+      });
   },
 };
 
@@ -312,6 +360,39 @@ export interface GeoGenerateResultExtended extends GeoGenerateResult {
   };
 }
 
+/** Request contract for POST /api/v1/geo/import - creates business with AI generation. */
+export interface GeoImportInput {
+  business_name: string;
+  niche: string;
+  city: string;
+  address_2gis_url: string;
+  district?: string;
+  phone?: string;
+  website?: string;
+  social_links?: string[];
+  lang?: "ru" | "kz" | "en";
+  latitude?: number;
+  longitude?: number;
+  opening_hours?: string[];
+  accepts_reservations?: boolean;
+  payment_methods?: string[];
+  usp?: string;
+  features?: string[];
+  target_audience?: string;
+  ambient_description?: string;
+  tags?: string[];
+  avg_check_kzt?: number;
+  has_outlets?: boolean;
+  has_wifi?: boolean;
+}
+
+/** Response from POST /api/v1/geo/import - includes business_id, slug, and generated_content. */
+export interface GeoImportResult extends GeoGenerateResultExtended {
+  business_id: string;
+  slug: string;
+  place_record?: Record<string, unknown>;
+}
+
 /** Real request contract of GET /api/v1/geo/schema (query params, not a path id). */
 export interface GeoSchemaInput {
   business_name: string;
@@ -335,6 +416,13 @@ export const geoApi = {
   /** Real endpoint: POST /api/v1/geo/generate (BusinessInput -> GeoPackageResponse). */
   generate: (input: GeoGenerateInput): Promise<GeoGenerateResultExtended> =>
     req("/api/v1/geo/generate", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+
+  /** New endpoint: POST /api/v1/geo/import - creates business with AI-generated content. */
+  import: (input: GeoImportInput): Promise<GeoImportResult> =>
+    req("/api/v1/geo/import", {
       method: "POST",
       body: JSON.stringify(input),
     }),
