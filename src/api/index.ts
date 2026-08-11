@@ -235,7 +235,7 @@ export const placesApi = {
    * 4. Persists to database (not just localStorage)
    */
   upsertMine: (data: VendorPlaceInput, idempotencyKey?: string): Promise<{ status: string; place_id: string }> => {
-    // Try backend import first - this will trigger Grok generation
+    // Try backend import first - this will trigger Grok generation and return full entity
     const importPayload: GeoImportInput = {
       business_name: data.name,
       niche: data.category,
@@ -260,13 +260,32 @@ export const placesApi = {
 
     return geoApi.import(importPayload)
       .then((result) => {
-        // Backend returned full entity with generated_content
-        // Also save to localStorage as cache
+        // Backend returned full entity with generated_content from Grok
+        // Merge generated_content into the place object for full mini-landing
+        const generatedContent = result.generated_content || {};
         const place = mapBackendPlace({
           ...result,
-          ...result.generated_content,
+          ...result.place_record,
+          // Spread generated_content fields directly so they become top-level Place properties
+          about: generatedContent.about,
+          usp: generatedContent.usp || data.usp ? [generatedContent.usp || data.usp].filter(Boolean) as string[] : undefined,
+          offerings: generatedContent.offerings,
+          audience: generatedContent.audience,
+          faq: generatedContent.faq,
+          tips: generatedContent.tips,
+          how_to_get_there: generatedContent.how_to_get_there,
+          nearby_landmarks: generatedContent.nearby_landmarks,
+          working_hours: generatedContent.working_hours || data.working_hours,
+          payment_methods: generatedContent.payment_methods || data.payment_methods,
+          // Preserve original fields
           id: result.business_id,
-          slug: result.slug,
+          slug: result.slug || result.business_id,
+          name: result.business_name || data.name,
+          category: data.category,
+          district: data.district,
+          address: data.address,
+          ambient_description: data.ambient_description,
+          two_gis_url: data.two_gis_url,
         });
         const filtered = readLocalPlaces().filter((p) => (p as { slug?: string })?.slug !== place.slug);
         filtered.unshift(place);
