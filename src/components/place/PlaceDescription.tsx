@@ -5,17 +5,15 @@ interface PlaceDescriptionProps {
 }
 
 export function PlaceDescription({ place }: PlaceDescriptionProps) {
-  if (!place.ambient_description && !place.usp) return null;
+  // Use about from generated_content, fallback to ambient_description or usp
+  const description = place.about || place.ambient_description || place.usp;
+  
+  if (!description) return null;
 
   return (
     <div className="mb-8 rounded-xl bg-[#2f2f2f] p-6">
       <h2 className="text-xl font-semibold text-white mb-3">О заведении</h2>
-      {place.ambient_description && (
-        <p className="text-white/80 leading-relaxed mb-4">{place.ambient_description}</p>
-      )}
-      {place.usp && place.ambient_description !== place.usp && (
-        <p className="text-white/70 italic">{place.usp}</p>
-      )}
+      <p className="text-white/80 leading-relaxed">{description}</p>
     </div>
   );
 }
