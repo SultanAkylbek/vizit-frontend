@@ -49,6 +49,10 @@ export interface Place {
   conversational_answers?: { question: string; answer: string }[];
   breadcrumb?: { name: string; url?: string }[];
   canonical_url?: string;
+  // AI-generated content fields from Grok
+  about?: string;
+  offerings?: string[];
+  audience?: string[];
 }
 
 export interface VendorPlaceInput {
@@ -473,6 +477,13 @@ export const geoApi = {
    * locally without making a network call, instead of inventing a route. */
   status: (): Promise<{ available: false; reason: string }> =>
     Promise.resolve({ available: false, reason: "Backend не хранит GEO-статус — эндпоинта не существует" }),
+
+  /** Get full Business Entity by business_id from backend.
+   * Endpoint: GET /api/v1/places/{business_id}
+   * Returns complete PlaceRecord with generated_content.
+   */
+  getById: (business_id: string): Promise<GeoImportResult> =>
+    req(`/api/v1/places/${business_id}`),
 };
 
 function readLocalOffers(): any[] {

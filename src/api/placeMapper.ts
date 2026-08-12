@@ -69,9 +69,15 @@ export function mapBackendPlace(raw: unknown): Place {
   const category = asString(item.category, asString(item.niche, "other")).toLowerCase();
   const address = asString(item.address, "Адрес уточняется");
   const district = asString(item.district, asString(item.city, ""));
+  
+  // Extract generated_content if present (from Grok AI generation)
+  const generatedContent = item.generated_content && typeof item.generated_content === "object" 
+    ? (item.generated_content as Record<string, unknown>) 
+    : null;
+  
   const description = asString(
     item.ambient_description,
-    asString(item.description_for_maps, asString(item.usp, "Описание пока не добавлено."))
+    asString(item.description_for_maps, asString(item.usp, asString(generatedContent?.about as string, "Описание пока не добавлено.")))
   );
   const lat = asNumber(item.lat) ?? asNumber(item.latitude);
   const lng = asNumber(item.lng) ?? asNumber(item.longitude);
@@ -123,6 +129,10 @@ export function mapBackendPlace(raw: unknown): Place {
     conversational_answers: Array.isArray(item.conversational_answers) ? item.conversational_answers.map((c: any) => ({ question: String(c.question || ""), answer: String(c.answer || "") })) : undefined,
     breadcrumb: Array.isArray(item.breadcrumb) ? item.breadcrumb.map((b: any) => ({ name: String(b.name || ""), url: b.url ? String(b.url) : undefined })) : undefined,
     canonical_url: asString(item.canonical_url, undefined) || undefined,
+    // Map generated_content fields from Grok AI to Place properties
+    about: generatedContent ? asString(generatedContent.about as string, undefined) || undefined : undefined,
+    offerings: generatedContent && Array.isArray(generatedContent.offerings) ? generatedContent.offerings.map(String) : undefined,
+    audience: generatedContent && Array.isArray(generatedContent.audience) ? generatedContent.audience.map(String) : undefined,
   };
 }
 
