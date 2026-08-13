@@ -14,6 +14,7 @@ import { PlaceDirections } from "../components/place/PlaceDirections";
 import { PlaceFAQ } from "../components/place/PlaceFAQ";
 import { PlaceTips } from "../components/place/PlaceTips";
 import { PlaceNearby } from "../components/place/PlaceNearby";
+import { PlaceSocials } from "../components/place/PlaceSocials";
 import { PlaceSEO } from "../components/place/PlaceSEO";
 
 const API_BASE = "https://vizit-backend-vdt2.onrender.com";
@@ -30,7 +31,6 @@ type PlacePageProps = {
   slug: string;
 };
 
-/** Merge backend place with localStorage generated_content if present */
 function mergeWithLocalPlace(backendPlace: Place): Place {
   try {
     const raw = localStorage.getItem("vizit_local_places");
@@ -41,7 +41,6 @@ function mergeWithLocalPlace(backendPlace: Place): Place {
     );
     if (!local) return backendPlace;
 
-    // Merge: local generated_content overrides backend empty fields
     const merged = { ...backendPlace };
     if (local.generated_content && typeof local.generated_content === "object") {
       const gc = local.generated_content as Record<string, unknown>;
@@ -64,7 +63,6 @@ function mergeWithLocalPlace(backendPlace: Place): Place {
       if (Array.isArray(gc.payment_methods) && (!merged.payment_methods || merged.payment_methods.length === 0))
         merged.payment_methods = gc.payment_methods as string[];
     }
-    // Also merge top-level fields if backend missed them
     if (local.about && !merged.about) merged.about = local.about;
     if (local.usp && !merged.usp) merged.usp = local.usp;
     if (Array.isArray(local.offerings) && (!merged.offerings || merged.offerings.length === 0))
@@ -79,6 +77,8 @@ function mergeWithLocalPlace(backendPlace: Place): Place {
       merged.how_to_get_there = local.how_to_get_there;
     if (Array.isArray(local.nearby_landmarks) && (!merged.nearby_landmarks || merged.nearby_landmarks.length === 0))
       merged.nearby_landmarks = local.nearby_landmarks;
+    if (local.instagram && !merged.instagram) merged.instagram = local.instagram;
+    if (local.tiktok && !merged.tiktok) merged.tiktok = local.tiktok;
 
     return merged;
   } catch {
@@ -112,7 +112,6 @@ export default function PlacePage({ slug }: PlacePageProps) {
       })
       .then((data: unknown) => {
         const mapped = mapBackendPlace(data);
-        // CRITICAL: merge with localStorage generated_content
         const merged = mergeWithLocalPlace(mapped);
         setPlace(merged);
         setStatus("ok");
@@ -131,7 +130,6 @@ export default function PlacePage({ slug }: PlacePageProps) {
             setStatus("ok");
           })
           .catch((secondErr) => {
-            // Try localStorage fallback
             try {
               const raw = localStorage.getItem("vizit_local_places");
               if (raw) {
@@ -191,6 +189,7 @@ export default function PlacePage({ slug }: PlacePageProps) {
             <PlaceNearby place={place} />
             <PlaceFAQ place={place} />
             <PlaceTips place={place} />
+            <PlaceSocials place={place} />
           </div>
         )}
       </div>
