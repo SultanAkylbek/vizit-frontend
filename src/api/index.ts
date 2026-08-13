@@ -443,13 +443,25 @@ export const placesApi = {
       }
     }
 
+     // Step 3: Merge place + generated_content and cache locally
     const merged = {
       ...placeRecord,
       ...generateResult,
       id: businessId,
       business_id: businessId,
+      name: data.name,
+      category: data.category,
+      address: data.address,
+      district: data.district,
+      two_gis_url: data.two_gis_url,
+      phone: data.phone,
+      website: data.website,
       instagram: data.instagram,
       tiktok: data.tiktok,
+      working_hours: data.working_hours,
+      payment_methods: data.payment_methods,
+      ambient_description: data.ambient_description,
+      tags: data.tags,
     };
     const place = mapBackendPlace(merged);
     const filtered = readLocalPlaces().filter((p) => (p as { slug?: string })?.slug !== place.slug);
