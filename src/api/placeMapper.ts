@@ -75,15 +75,38 @@ export function mapBackendPlace(raw: unknown): Place {
     ? (item.generated_content as Record<string, unknown>) 
     : null;
   
+  // Prefer generated_content fields, fallback to root item fields
+  const gc = generatedContent;
+  const gcAbout = gc ? asString(gc.about as string, undefined) || undefined : undefined;
+  
   const description = asString(
-    item.ambient_description,
-    asString(item.description_for_maps, asString(item.usp, asString(generatedContent?.about as string, "Описание пока не добавлено.")))
+    gcAbout,
+    asString(item.ambient_description,
+      asString(item.description_for_maps,
+        asString(item.usp, "Описание пока не добавлено.")))
   );
   const lat = asNumber(item.lat) ?? asNumber(item.latitude);
   const lng = asNumber(item.lng) ?? asNumber(item.longitude);
   const twoGisUrl = asString(item.two_gis_url, asString(item.source_url, ""));
   const id = asString(item.id, slug);
   const tags = asTags(item.tags);
+
+  // Helper to pick from generated_content first, then root item
+  const pickStr = (gcKey: string, itemKey: string): string | undefined =>
+    gc ? asString(gc[gcKey] as string, undefined) || asString(item[itemKey] as string, undefined) || undefined
+    : asString(item[itemKey] as string, undefined) || undefined;
+
+  const pickArr = (gcKey: string, itemKey: string): string[] | undefined => {
+    if (gc && Array.isArray(gc[gcKey])) return (gc[gcKey] as unknown[]).map(String);
+    if (Array.isArray(item[itemKey])) return (item[itemKey] as unknown[]).map(String);
+    return undefined;
+  };
+
+  const pickFaq = (): { question: string; answer: string }[] | undefined => {
+    if (gc && Array.isArray(gc.faq)) return (gc.faq as any[]).map((f) => ({ question: String(f.question || ""), answer: String(f.answer || "") }));
+    if (Array.isArray(item.faq)) return (item.faq as any[]).map((f) => ({ question: String(f.question || ""), answer: String(f.answer || "") }));
+    return undefined;
+  };
 
   return {
     id,
@@ -106,16 +129,16 @@ export function mapBackendPlace(raw: unknown): Place {
     phone: asString(item.phone, undefined) || undefined,
     website: asString(item.website, undefined) || undefined,
     instagram: asString(item.instagram, undefined) || undefined,
-    working_hours: asString(item.working_hours, undefined) || undefined,
+    working_hours: pickStr("working_hours", "working_hours"),
     rating: asNumber(item.rating),
-    payment_methods: Array.isArray(item.payment_methods) ? item.payment_methods.map(String) : undefined,
-    usp: asString(item.usp, undefined) || undefined,
-    features: Array.isArray(item.features) ? item.features.map(String) : undefined,
-    target_audience: asString(item.target_audience, undefined) || undefined,
-    nearby_landmarks: Array.isArray(item.nearby_landmarks) ? item.nearby_landmarks.map(String) : undefined,
-    how_to_get_there: asString(item.how_to_get_there, undefined) || undefined,
-    faq: Array.isArray(item.faq) ? item.faq.map((f: any) => ({ question: String(f.question || ""), answer: String(f.answer || "") })) : undefined,
-    tips: Array.isArray(item.tips) ? item.tips.map(String) : undefined,
+    payment_methods: pickArr("payment_methods", "payment_methods"),
+    usp: pickArr("usp", "usp")?.[0] || asString(item.usp, undefined) || undefined,
+    features: pickArr("features", "features"),
+    target_audience: pickArr("audience", "target_audience")?.[0] || pickStr("target_audience", "target_audience"),
+    nearby_landmarks: pickArr("nearby_landmarks", "nearby_landmarks"),
+    how_to_get_there: pickStr("how_to_get_there", "how_to_get_there"),
+    faq: pickFaq(),
+    tips: pickArr("tips", "tips"),
     local_guides: Array.isArray(item.local_guides) ? item.local_guides.map(String) : undefined,
     comparison_sections: Array.isArray(item.comparison_sections) ? item.comparison_sections.map((c: any) => ({ title: String(c.title || ""), content: String(c.content || "") })) : undefined,
     page_sections: Array.isArray(item.page_sections) ? item.page_sections.map((p: any) => ({ title: String(p.title || ""), content: String(p.content || "") })) : undefined,
@@ -123,16 +146,16 @@ export function mapBackendPlace(raw: unknown): Place {
     business_knowledge: asString(item.business_knowledge, undefined) || undefined,
     entity_json: item.entity_json && typeof item.entity_json === "object" ? item.entity_json as Record<string, unknown> : undefined,
     semantic_relations: Array.isArray(item.semantic_relations) ? item.semantic_relations.map(String) : undefined,
-    search_intents: Array.isArray(item.search_intents) ? item.search_intents.map(String) : undefined,
+    search_intents: pickArr("search_intents", "search_intents"),
     source_snippets: Array.isArray(item.source_snippets) ? item.source_snippets.map(String) : undefined,
     recommendation_snippets: Array.isArray(item.recommendation_snippets) ? item.recommendation_snippets.map(String) : undefined,
     conversational_answers: Array.isArray(item.conversational_answers) ? item.conversational_answers.map((c: any) => ({ question: String(c.question || ""), answer: String(c.answer || "") })) : undefined,
     breadcrumb: Array.isArray(item.breadcrumb) ? item.breadcrumb.map((b: any) => ({ name: String(b.name || ""), url: b.url ? String(b.url) : undefined })) : undefined,
     canonical_url: asString(item.canonical_url, undefined) || undefined,
     // Map generated_content fields from Grok AI to Place properties
-    about: generatedContent ? asString(generatedContent.about as string, undefined) || undefined : undefined,
-    offerings: generatedContent && Array.isArray(generatedContent.offerings) ? generatedContent.offerings.map(String) : undefined,
-    audience: generatedContent && Array.isArray(generatedContent.audience) ? generatedContent.audience.map(String) : undefined,
+    about: gcAbout,
+    offerings: pickArr("offerings", "offerings"),
+    audience: pickArr("audience", "audience"),
   };
 }
 
