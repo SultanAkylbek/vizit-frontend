@@ -26,6 +26,7 @@ export interface Place {
   phone?: string;
   website?: string;
   instagram?: string;
+  tiktok?: string;
   working_hours?: string;
   rating?: number;
   payment_methods?: string[];
@@ -49,7 +50,6 @@ export interface Place {
   conversational_answers?: { question: string; answer: string }[];
   breadcrumb?: { name: string; url?: string }[];
   canonical_url?: string;
-  // AI-generated content fields from Grok
   about?: string;
   offerings?: string[];
   audience?: string[];
@@ -70,6 +70,8 @@ export interface VendorPlaceInput {
   has_wifi: boolean;
   phone?: string;
   website?: string;
+  instagram?: string;
+  tiktok?: string;
   working_hours?: string;
   payment_methods?: string[];
   usp?: string;
@@ -90,6 +92,7 @@ export interface BusinessFacts {
   phone?: string;
   website?: string;
   instagram?: string;
+  tiktok?: string;
   working_hours?: string;
   payment_methods?: string[];
   description?: string;
@@ -192,8 +195,6 @@ function writeLocalPlaces(arr: unknown[]): void {
 
 // ── Frontend content generation (fallback when backend AI is unavailable) ──
 
-/** Build structured landing content from user input without calling any external AI API.
- * This guarantees the landing page always has content even if backend Groq / OpenRouter fails. */
 function generateTemplateContent(data: VendorPlaceInput): GeoGenerateResultExtended {
   const categoryNames: Record<string, string> = {
     cafe: "кофейня",
@@ -236,20 +237,25 @@ function generateTemplateContent(data: VendorPlaceInput): GeoGenerateResultExten
   };
   const audience = audienceMap[data.category] || audienceMap.other;
 
+  const socialText = [];
+  if (data.instagram) socialText.push(`Instagram: ${data.instagram}`);
+  if (data.tiktok) socialText.push(`TikTok: ${data.tiktok}`);
+
   const faq = [
     { question: "Какой адрес?", answer: `Мы находимся по адресу: ${data.address}${data.district ? `, район ${data.district}` : ""}.` },
     { question: "Какие часы работы?", answer: data.working_hours ? `Режим работы: ${data.working_hours}` : "Уточняйте часы работы по телефону." },
     { question: "Есть ли Wi-Fi?", answer: data.tags?.some((t) => t.toLowerCase().includes("wifi")) ? "Да, у нас есть бесплатный Wi-Fi для гостей." : "Уточняйте наличие Wi-Fi на месте." },
     { question: "Какие способы оплаты?", answer: data.payment_methods?.length ? `Принимаем: ${data.payment_methods.join(", ")}.` : "Принимаем наличные и банковские карты." },
+    { question: "Есть ли соцсети?", answer: socialText.length > 0 ? `Да, следите за нами: ${socialText.join(", ")}.` : "Соцсети уточняйте на месте." },
   ];
 
   const tips = [
     "Лучшее время для посещения — будние дни утром",
     data.tags?.some((t) => t.toLowerCase().includes("wifi")) ? "Не забудьте попросить пароль от Wi-Fi" : "Рекомендуем забронировать место заранее",
-    "Следите за акциями в наших соцсетях",
+    socialText.length > 0 ? "Следите за акциями в наших соцсетях" : "Следите за обновлениями",
   ].filter(Boolean);
 
-  const how_to_get_there = `${data.name} расположен по адресу ${data.address}${data.district ? ` в районе ${data.district}` : ""}. ${data.lat && data.lng ? `Координаты: ${data.lat}, ${data.lng}.` : ""} Рекомендуем использовать 2GIS или Яндекс.Карты для построения маршрута.`;
+  const how_to_get_there = `${data.name} расположен по адресу ${data.address}${data.district ? ` в районе ${data.district}` : ""}. Рекомендуем использовать 2GIS или Яндекс.Карты для построения маршрута.`;
 
   const nearby_landmarks = [
     data.district ? `Центр района ${data.district}` : "Центральная площадь",
@@ -283,9 +289,6 @@ function generateTemplateContent(data: VendorPlaceInput): GeoGenerateResultExten
   };
 }
 
-/** Optional frontend AI generation via OpenRouter (free models available).
- * Set VITE_OPENROUTER_API_KEY in .env to enable real AI instead of template fallback.
- * Get free key at https://openrouter.ai/keys */
 async function generateAIContent(data: VendorPlaceInput, apiKey: string): Promise<GeoGenerateResultExtended | null> {
   const prompt = `Ты — копирайтер для локального бизнеса в Астане, Казахстан. Напиши структурированное описание для "${data.name}" (${data.category}).
 
@@ -293,6 +296,8 @@ async function generateAIContent(data: VendorPlaceInput, apiKey: string): Promis
 Район: ${data.district || "Астана"}
 Описание от владельца: ${data.ambient_description}
 Теги: ${data.tags?.join(", ") || ""}
+${data.instagram ? `Instagram: ${data.instagram}` : ""}
+${data.tiktok ? `TikTok: ${data.tiktok}` : ""}
 
 Ответь СТРОГО в формате JSON без markdown:
 {
@@ -360,23 +365,7 @@ async function generateAIContent(data: VendorPlaceInput, apiKey: string): Promis
   }
 }
 
-/**
- * BACKEND REALITY CHECK (verified against vizit_ai_backend.py):
- * The real backend does NOT have a "list all places" or "save my place"
- * endpoint. It only has:
- *   POST /api/v1/geo/generate
- *   POST /api/v1/geo/audit
- *   GET  /api/v1/geo/schema        (query params, not a path id)
- *   POST /api/v1/places/from-2gis  (scrape-only, requires a 2GIS URL)
- *   GET  /api/v1/places/{business_id}
- * There is no /api/v1/places (list), /api/v1/vendor/place,
- * /api/v1/vendor/offers, or /api/v1/geo/status anywhere in the backend.
- * Rather than invent endpoints that don't exist, placesApi.list/upsertMine
- * and offersApi below fall back to local-only storage until a real backend
- * endpoint exists for them.
- */
 export const placesApi = {
-  /** No real list endpoint exists — fallback: locally-saved places only. */
   list: (): Promise<Place[]> => Promise.resolve(mapBackendPlaces(readLocalPlaces())),
 
   search: async (
@@ -398,12 +387,6 @@ export const placesApi = {
     };
   },
 
-  /**
-   * Create business via backend GEO pipeline.
-   * Flow: POST /api/v1/geo/import (save) → POST /api/v1/geo/generate (AI content)
-   * Both endpoints are real and exist on the backend.
-   * If generation fails, business is kept but error is thrown (no fake success).
-   */
   upsertMine: async (data: VendorPlaceInput, idempotencyKey?: string): Promise<{ status: string; place_id: string; slug: string; generated_by: "backend" | "template" | "openrouter" }> => {
     const importPayload: GeoImportInput = {
       business_name: data.name,
@@ -427,7 +410,6 @@ export const placesApi = {
       lang: "ru",
     };
 
-    // Step 1: Save business to DB
     const importResult = await geoApi.import(importPayload);
     const placeRecord = importResult.place;
     const businessId = placeRecord.business_id as string;
@@ -436,7 +418,6 @@ export const placesApi = {
       throw new ApiError(502, "Backend вернул ответ без business_id");
     }
 
-    // Step 2: Run AI generation (backend first, then frontend fallbacks)
     let generateResult: GeoGenerateResultExtended;
     let generatedBy: "backend" | "template" | "openrouter" = "backend";
 
@@ -446,7 +427,6 @@ export const placesApi = {
         business_id: businessId,
       });
     } catch {
-      // Backend AI failed — try OpenRouter if API key is configured
       const openRouterKey = import.meta.env.VITE_OPENROUTER_API_KEY as string | undefined;
       if (openRouterKey) {
         const aiResult = await generateAIContent(data, openRouterKey);
@@ -458,18 +438,18 @@ export const placesApi = {
           generatedBy = "template";
         }
       } else {
-        // No API key — use template-based generation (always works, zero cost)
         generateResult = generateTemplateContent(data);
         generatedBy = "template";
       }
     }
 
-    // Step 3: Merge place + generated_content and cache locally
     const merged = {
       ...placeRecord,
       ...generateResult,
       id: businessId,
       business_id: businessId,
+      instagram: data.instagram,
+      tiktok: data.tiktok,
     };
     const place = mapBackendPlace(merged);
     const filtered = readLocalPlaces().filter((p) => (p as { slug?: string })?.slug !== place.slug);
@@ -485,18 +465,9 @@ export const placesApi = {
   },
 };
 
-/** A 2GIS import draft is just a Place, mapped from whatever shape the
- * backend returned (old MVP fields or new GEO PlaceRecord fields) — same
- * mapper as everywhere else, so there's only one source of truth. */
 export type TwoGisDraft = Place;
 
 export const importApi = {
-  /**
-   * Calls the existing 2GIS import endpoint: it scrapes the given 2GIS place
-   * URL and returns a best-effort draft (OG tags + generated description).
-   * The draft is a starting point — the vendor still reviews/edits it before
-   * it's actually saved via placesApi.upsertMine.
-   */
   fromTwoGis: (twoGisUrl: string): Promise<TwoGisDraft> =>
     req<{ place?: unknown }>("/api/v1/places/from-2gis", {
       method: "POST",
@@ -509,7 +480,6 @@ export const importApi = {
     }),
 };
 
-/** Real request contract of POST /api/v1/geo/generate (BusinessInput). */
 export interface GeoGenerateInput {
   business_name: string;
   niche: string;
@@ -529,7 +499,6 @@ export interface GeoGenerateInput {
   accepts_reservations?: boolean;
 }
 
-/** Real response contract of POST /api/v1/geo/generate (GeoPackageResponse). */
 export interface GeoGenerateResult {
   business_name: string;
   city: string;
@@ -543,7 +512,6 @@ export interface GeoGenerateResult {
   action_checklist: string[];
 }
 
-/** Extended GEO result with full page content generation. */
 export interface GeoGenerateResultExtended extends GeoGenerateResult {
   generated_content?: {
     about: string;
@@ -559,7 +527,6 @@ export interface GeoGenerateResultExtended extends GeoGenerateResult {
   };
 }
 
-/** Request contract for POST /api/v1/geo/import - creates business with AI generation. */
 export interface GeoImportInput {
   business_name: string;
   niche: string;
@@ -585,14 +552,12 @@ export interface GeoImportInput {
   has_wifi?: boolean;
 }
 
-/** Response from POST /api/v1/geo/import - real backend contract. */
 export interface GeoImportResult {
   place: Record<string, unknown>;
   storage_backend: string;
   indexnow_submitted: boolean;
 }
 
-/** Real request contract of GET /api/v1/geo/schema (query params, not a path id). */
 export interface GeoSchemaInput {
   business_name: string;
   niche: string;
@@ -612,22 +577,18 @@ export interface GeoSchemaInput {
 }
 
 export const geoApi = {
-  /** Real endpoint: POST /api/v1/geo/generate (BusinessInput -> GeoPackageResponse). */
   generate: (input: GeoGenerateInput): Promise<GeoGenerateResultExtended> =>
     req("/api/v1/geo/generate", {
       method: "POST",
       body: JSON.stringify(input),
     }),
 
-  /** New endpoint: POST /api/v1/geo/import - creates business with AI-generated content. */
   import: (input: GeoImportInput): Promise<GeoImportResult> =>
     req("/api/v1/geo/import", {
       method: "POST",
       body: JSON.stringify(input),
     }),
 
-  /** Real endpoint: GET /api/v1/geo/schema — query params, required fields
-   * must be provided (business_name, niche, city, address). */
   schema: (input: GeoSchemaInput): Promise<{ schema_org: Record<string, unknown> }> => {
     const params = new URLSearchParams();
     params.set("business_name", input.business_name);
@@ -648,16 +609,9 @@ export const geoApi = {
     return req(`/api/v1/geo/schema?${params.toString()}`);
   },
 
-  /** No such endpoint exists on the backend — there is no persisted GEO
-   * pipeline status anywhere server-side. Fallback: report "unavailable"
-   * locally without making a network call, instead of inventing a route. */
   status: (): Promise<{ available: false; reason: string }> =>
     Promise.resolve({ available: false, reason: "Backend не хранит GEO-статус — эндпоинта не существует" }),
 
-  /** Get full Business Entity by business_id from backend.
-   * Endpoint: GET /api/v1/places/{business_id}
-   * Returns complete PlaceRecord with generated_content.
-   */
   getById: (business_id: string): Promise<GeoImportResult> =>
     req(`/api/v1/places/${business_id}`),
 };
@@ -680,8 +634,6 @@ function writeLocalOffers(arr: any[]): void {
   }
 }
 
-/** No real /api/v1/vendor/offers endpoint exists on the backend — fallback:
- * local-only storage until a real endpoint is implemented. */
 export const offersApi = {
   listMine: (): Promise<any[]> => Promise.resolve(readLocalOffers()),
 
