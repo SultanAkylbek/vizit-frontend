@@ -16,17 +16,17 @@ export function PlaceHero({ place }: PlaceHeroProps) {
           <h1 className="text-3xl font-bold text-white">
             {place.name}
             {place.is_verified && (
-              <span className="ml-2 inline-flex items-center rounded-full bg-green-500/20 px-2.5 py-0.5 text-xs font-medium text-green-400">
+              <span className="ml-2 inline-flex items-center rounded-full bg-white/10 px-2.5 py-0.5 text-xs font-medium text-white/70">
                 проверено
               </span>
             )}
           </h1>
-          <p className="text-lg text-white/60 mt-1">{place.category}</p>
+          <p className="text-lg text-white/50 mt-1 capitalize">{place.category}</p>
         </div>
       </div>
 
-      <div className="flex items-center gap-2 text-white/70 mt-3 mb-4">
-        <MapPin size={18} className="text-white/40" />
+      <div className="flex items-center gap-2 text-white/60 mt-3 mb-4">
+        <MapPin size={18} className="text-white/30" />
         <span>{[place.district, place.address].filter(Boolean).join(", ")}</span>
       </div>
 
@@ -37,7 +37,7 @@ export function PlaceHero({ place }: PlaceHeroProps) {
               href={place.two_gis_url}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-2 rounded-lg bg-[#2f2f2f] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#3a3a3a] transition-colors"
+              className="inline-flex items-center gap-2 rounded-lg bg-[#1a1a1a] border border-white/10 px-4 py-2.5 text-sm font-medium text-white hover:bg-[#222] transition-colors"
             >
               <MapPin size={16} />
               2GIS
@@ -46,7 +46,7 @@ export function PlaceHero({ place }: PlaceHeroProps) {
           {place.phone && (
             <a
               href={`tel:${place.phone.replace(/\s/g, "")}`}
-              className="inline-flex items-center gap-2 rounded-lg bg-[#2f2f2f] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#3a3a3a] transition-colors"
+              className="inline-flex items-center gap-2 rounded-lg bg-[#1a1a1a] border border-white/10 px-4 py-2.5 text-sm font-medium text-white hover:bg-[#222] transition-colors"
             >
               <Phone size={16} />
               Позвонить
@@ -57,7 +57,7 @@ export function PlaceHero({ place }: PlaceHeroProps) {
               href={place.website.startsWith("http") ? place.website : `https://${place.website}`}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-2 rounded-lg bg-[#2f2f2f] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#3a3a3a] transition-colors"
+              className="inline-flex items-center gap-2 rounded-lg bg-[#1a1a1a] border border-white/10 px-4 py-2.5 text-sm font-medium text-white hover:bg-[#222] transition-colors"
             >
               <Globe size={16} />
               Сайт
@@ -68,7 +68,7 @@ export function PlaceHero({ place }: PlaceHeroProps) {
               href={place.instagram.startsWith("http") ? place.instagram : `https://instagram.com/${place.instagram.replace(/^@/, "")}`}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-2 rounded-lg bg-[#2f2f2f] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#3a3a3a] transition-colors"
+              className="inline-flex items-center gap-2 rounded-lg bg-[#1a1a1a] border border-white/10 px-4 py-2.5 text-sm font-medium text-white hover:bg-[#222] transition-colors"
             >
               <Instagram size={16} />
               Instagram
