@@ -231,19 +231,17 @@ export const placesApi = {
   },
 
   /**
-   * NEW: Create/update business via backend GEO pipeline.
-   * Calls POST /api/v1/geo/import which:
-   * 1. Saves basic business info
-   * 2. Runs Grok AI generation
-   * 3. Returns full Business Entity with generated_content
-   * 4. Persists to database (not just localStorage)
+   * Create business via backend GEO pipeline.
+   * Flow: POST /api/v1/geo/import (save) → POST /api/v1/geo/generate (AI content)
+   * Both endpoints are real and exist on the backend.
+   * If generation fails, business is kept but error is thrown (no fake success).
    */
-  upsertMine: (data: VendorPlaceInput, idempotencyKey?: string): Promise<{ status: string; place_id: string }> => {
-    // Try backend import first - this will trigger Grok generation and return full entity
+  upsertMine: async (data: VendorPlaceInput, idempotencyKey?: string): Promise<{ status: string; place_id: string; slug: string }> => {
     const importPayload: GeoImportInput = {
       business_name: data.name,
       niche: data.category,
       city: "Астана",
+      address: data.address,
       address_2gis_url: data.two_gis_url || data.address,
       district: data.district,
       phone: data.phone,
@@ -258,54 +256,58 @@ export const placesApi = {
       latitude: data.lat ?? undefined,
       longitude: data.lng ?? undefined,
       opening_hours: data.working_hours ? [data.working_hours] : undefined,
-      accepts_reservations: undefined,
       lang: "ru",
     };
 
-    return geoApi.import(importPayload)
-      .then((result) => {
-        // Backend returned full entity with generated_content from Grok
-        // Merge generated_content into the place object for full mini-landing
-        const generatedContent = result.generated_content || {};
-        const place = mapBackendPlace({
-          ...result,
-          ...result.place_record,
-          // Spread generated_content fields directly so they become top-level Place properties
-          about: generatedContent.about,
-          usp: generatedContent.usp || data.usp ? [generatedContent.usp || data.usp].filter(Boolean) as string[] : undefined,
-          offerings: generatedContent.offerings,
-          audience: generatedContent.audience,
-          faq: generatedContent.faq,
-          tips: generatedContent.tips,
-          how_to_get_there: generatedContent.how_to_get_there,
-          nearby_landmarks: generatedContent.nearby_landmarks,
-          working_hours: generatedContent.working_hours || data.working_hours,
-          payment_methods: generatedContent.payment_methods || data.payment_methods,
-          // Preserve original fields
-          id: result.business_id,
-          slug: result.slug || result.business_id,
-          name: result.business_name || data.name,
-          category: data.category,
-          district: data.district,
-          address: data.address,
-          ambient_description: data.ambient_description,
-          two_gis_url: data.two_gis_url,
-        });
-        const filtered = readLocalPlaces().filter((p) => (p as { slug?: string })?.slug !== place.slug);
-        filtered.unshift(place);
-        writeLocalPlaces(filtered);
-        return { status: "saved_backend", place_id: result.business_id };
-      })
-      .catch((err) => {
-        // Fallback to localStorage only if backend fails
-        console.warn("Backend import failed, falling back to localStorage:", err);
-        const place_id = idempotencyKey || genId();
-        const mapped = mapBackendPlace({ ...data, id: place_id });
-        const filtered = readLocalPlaces().filter((p) => (p as { slug?: string })?.slug !== mapped.slug);
-        filtered.unshift(mapped);
-        writeLocalPlaces(filtered);
-        return { status: "saved_locally", place_id };
+    // Step 1: Save business to DB
+    const importResult = await geoApi.import(importPayload);
+    const placeRecord = importResult.place;
+    const businessId = placeRecord.business_id as string;
+
+    if (!businessId) {
+      throw new ApiError(502, "Backend вернул ответ без business_id");
+    }
+
+    // Step 2: Run AI generation via existing pipeline
+    let generateResult: GeoGenerateResultExtended;
+    try {
+      generateResult = await geoApi.generate({
+        ...importPayload,
+        business_id: businessId,
       });
+    } catch (genErr) {
+      // Business saved, generation failed — keep it but report error
+      const place = mapBackendPlace({
+        ...placeRecord,
+        id: businessId,
+        business_id: businessId,
+      });
+      const filtered = readLocalPlaces().filter((p) => (p as { slug?: string })?.slug !== place.slug);
+      filtered.unshift(place);
+      writeLocalPlaces(filtered);
+      throw new ApiError(
+        502,
+        "Заведение сохранено, но не удалось сгенерировать AI-контент. Попробуйте обновить страницу позже."
+      );
+    }
+
+    // Step 3: Merge place + generated_content and cache locally
+    const merged = {
+      ...placeRecord,
+      ...generateResult,
+      id: businessId,
+      business_id: businessId,
+    };
+    const place = mapBackendPlace(merged);
+    const filtered = readLocalPlaces().filter((p) => (p as { slug?: string })?.slug !== place.slug);
+    filtered.unshift(place);
+    writeLocalPlaces(filtered);
+
+    return {
+      status: "saved_backend",
+      place_id: businessId,
+      slug: place.slug,
+    };
   },
 };
 
@@ -409,11 +411,11 @@ export interface GeoImportInput {
   has_wifi?: boolean;
 }
 
-/** Response from POST /api/v1/geo/import - includes business_id, slug, and generated_content. */
-export interface GeoImportResult extends GeoGenerateResultExtended {
-  business_id: string;
-  slug: string;
-  place_record?: Record<string, unknown>;
+/** Response from POST /api/v1/geo/import - real backend contract. */
+export interface GeoImportResult {
+  place: Record<string, unknown>;
+  storage_backend: string;
+  indexnow_submitted: boolean;
 }
 
 /** Real request contract of GET /api/v1/geo/schema (query params, not a path id). */
