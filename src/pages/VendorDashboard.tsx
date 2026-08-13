@@ -1,14 +1,10 @@
 // src/pages/VendorDashboard.tsx
-// Зависит только от ../api/index.ts и ../hooks/usePlaces.ts
-// Никаких ../components/ui, никаких ../types
-
 import { useState } from "react";
 import { placesApi, offersApi, importApi, geoApi, ApiError } from "../api/index";
 import type { VendorPlaceInput, Place } from "../api/index";
 import { usePlaces } from "../hooks/usePlaces";
 import { normalizeTags } from "../geo/tags";
 
-// ── Стили из App.tsx (скопированы, чтобы не зависеть от ui.tsx) ──
 const C = {
   bg: "var(--color-background-tertiary)",
   surface: "var(--color-background-primary)",
@@ -44,7 +40,6 @@ const labelStyle: React.CSSProperties = {
 
 const fieldWrap: React.CSSProperties = { marginBottom: 12 };
 
-// ── GEO pipeline (Saved → Schema Generated → Indexed → GEO Ready) ──
 type GeoStage = "pending" | "running" | "done" | "unavailable" | "error";
 type GeoState = { saved: GeoStage; schema: GeoStage; indexed: GeoStage; ready: GeoStage; note?: string };
 const GEO_IDLE: GeoState = { saved: "pending", schema: "pending", indexed: "pending", ready: "pending" };
@@ -119,6 +114,8 @@ const EMPTY: VendorPlaceInput = {
   avg_check_kzt: null,
   has_outlets: false,
   has_wifi: false,
+  instagram: "",
+  tiktok: "",
 };
 
 function genKey(): string {
@@ -143,6 +140,8 @@ const TEXT = {
   fieldCheck: "Средний чек",
   fieldWifi: "Wi-Fi",
   fieldOutlets: "Розетки",
+  fieldInsta: "Instagram (опционально)",
+  fieldTiktok: "TikTok (опционально)",
   submitting: "Сохраняю...",
   added: "Сохранено",
   submit: "Сохранить",
@@ -371,6 +370,20 @@ export function VendorDashboard() {
             <input style={inputStyle} value={form.two_gis_url ?? ""}
               placeholder="https://2gis.kz/astana/..."
               onChange={(e) => set("two_gis_url", e.target.value)} />
+          </div>
+
+          <div style={fieldWrap}>
+            <label style={labelStyle}>{t.fieldInsta}</label>
+            <input style={inputStyle} value={form.instagram ?? ""}
+              placeholder="@surf.coffee или https://instagram.com/..."
+              onChange={(e) => set("instagram", e.target.value)} />
+          </div>
+
+          <div style={fieldWrap}>
+            <label style={labelStyle}>{t.fieldTiktok}</label>
+            <input style={inputStyle} value={form.tiktok ?? ""}
+              placeholder="@surf.coffee или https://tiktok.com/@..."
+              onChange={(e) => set("tiktok", e.target.value)} />
           </div>
 
           <div style={fieldWrap}>
