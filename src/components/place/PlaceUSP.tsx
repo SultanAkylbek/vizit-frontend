@@ -6,7 +6,6 @@ interface PlaceUSPProps {
 }
 
 export function PlaceUSP({ place }: PlaceUSPProps) {
-  // usp может быть строкой или массивом (из generated_content)
   const uspArray = place.usp 
     ? Array.isArray(place.usp) 
       ? place.usp 
@@ -18,14 +17,14 @@ export function PlaceUSP({ place }: PlaceUSPProps) {
   if (!hasUSP) return null;
 
   return (
-    <div className="mb-8 rounded-xl bg-[#2f2f2f] p-6">
+    <div className="mb-8 rounded-xl bg-[#1a1a1a] border border-white/10 p-6">
       <h2 className="text-xl font-semibold text-white mb-4">Почему выбирают нас</h2>
       
       {uspArray.length > 0 && (
-        <ul className="space-y-2 mb-4">
+        <ul className="space-y-3 mb-4">
           {uspArray.map((usp, index) => (
-            <li key={index} className="flex items-start gap-2 text-white/80">
-              <CheckCircle size={18} className="text-green-500 mt-0.5 shrink-0" />
+            <li key={index} className="flex items-start gap-3 text-white/80">
+              <CheckCircle size={18} className="text-white/40 mt-0.5 shrink-0" />
               <span>{usp}</span>
             </li>
           ))}
@@ -33,10 +32,10 @@ export function PlaceUSP({ place }: PlaceUSPProps) {
       )}
       
       {hasFeatures && (
-        <ul className="space-y-2">
+        <ul className="space-y-3">
           {place.features!.map((feature, index) => (
-            <li key={index} className="flex items-start gap-2 text-white/70">
-              <CheckCircle size={18} className="text-green-500 mt-0.5 shrink-0" />
+            <li key={index} className="flex items-start gap-3 text-white/70">
+              <CheckCircle size={18} className="text-white/40 mt-0.5 shrink-0" />
               <span>{feature}</span>
             </li>
           ))}
