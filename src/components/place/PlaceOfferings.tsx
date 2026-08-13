@@ -13,9 +13,9 @@ export function PlaceOfferings({ place }: PlaceOfferingsProps) {
   if (!hasPageSections && !hasComparisonSections && !hasOfferings) return null;
 
   return (
-    <div className="mb-8 rounded-xl bg-[#2f2f2f] p-6">
+    <div className="mb-8 rounded-xl bg-[#1a1a1a] border border-white/10 p-6">
       <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
-        <ShoppingBag size={20} />
+        <ShoppingBag size={20} className="text-white/40" />
         Что мы предлагаем
       </h2>
       
@@ -23,7 +23,7 @@ export function PlaceOfferings({ place }: PlaceOfferingsProps) {
         <ul className="space-y-2 mb-4">
           {place.offerings!.map((offering, index) => (
             <li key={index} className="flex items-start gap-2 text-white/80">
-              <span className="text-green-400 mt-1">•</span>
+              <span className="text-white/40 mt-1">•</span>
               <span>{offering}</span>
             </li>
           ))}
