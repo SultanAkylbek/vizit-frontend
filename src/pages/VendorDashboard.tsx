@@ -45,7 +45,6 @@ const labelStyle: React.CSSProperties = {
 const fieldWrap: React.CSSProperties = { marginBottom: 12 };
 
 // ── GEO pipeline (Saved → Schema Generated → Indexed → GEO Ready) ──
-// Lives in this same file on purpose (project convention: no ../components).
 type GeoStage = "pending" | "running" | "done" | "unavailable" | "error";
 type GeoState = { saved: GeoStage; schema: GeoStage; indexed: GeoStage; ready: GeoStage; note?: string };
 const GEO_IDLE: GeoState = { saved: "pending", schema: "pending", indexed: "pending", ready: "pending" };
@@ -56,10 +55,6 @@ async function runGeoPipeline(
 ) {
   setGeo({ saved: "done", schema: "running", indexed: "running", ready: "running" });
   try {
-    // Real backend contract (BusinessInput): business_name/niche/city/usp/
-    // address_2gis_url are required. The product is Astana-only today and
-    // the UI collects a district, not a city, so "Астана" is used as the
-    // one sensible default rather than adding a new form field.
     const result = await geoApi.generate({
       business_name: fields.name,
       niche: fields.category,
@@ -68,9 +63,6 @@ async function runGeoPipeline(
       usp: fields.ambient_description.slice(0, 300) || fields.name,
       address_2gis_url: fields.two_gis_url || fields.address,
     });
-    // /api/v1/geo/generate always builds schema_org synchronously when the
-    // call succeeds (there's no separate "did schema generation fail" flag
-    // in the real response) — indexnow_submitted is the one real signal.
     setGeo({
       saved: "done",
       schema: "done",
@@ -147,8 +139,6 @@ const TEXT = {
   fieldDist: "Район",
   fieldDesc: "Описание",
   tagsLabel: "Теги (через запятую)",
-  fieldLat: "Широта",
-  fieldLng: "Долгота",
   fieldGis: "2GIS ссылка",
   fieldCheck: "Средний чек",
   fieldWifi: "Wi-Fi",
@@ -171,7 +161,6 @@ export function VendorDashboard() {
   const [tab, setTab] = useState<"add" | "offer" | "import">("add");
   const [geo, setGeo] = useState<GeoState>(GEO_IDLE);
 
-  // ── Форма заведения ─────────────────────────────────────────
   const [form, setForm] = useState<VendorPlaceInput>(EMPTY);
   const [tagsRaw, setTagsRaw] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "ok" | "err">("idle");
@@ -221,7 +210,6 @@ export function VendorDashboard() {
     }
   }
 
-  // ── Форма оффера ────────────────────────────────────────────
   const [offerTitle, setOfferTitle] = useState("");
   const [offerBonus, setOfferBonus] = useState("");
   const [offerDisc, setOfferDisc] = useState("0");
@@ -254,7 +242,6 @@ export function VendorDashboard() {
     }
   }
 
-  // ── Импорт из 2GIS ───────────────────────────────────────────
   const [gisUrl, setGisUrl] = useState("");
   const [gisStep, setGisStep] = useState<"link" | "loading" | "review" | "saving" | "done" | "error">("link");
   const [gisDraft, setGisDraft] = useState<Place | null>(null);
@@ -320,14 +307,12 @@ export function VendorDashboard() {
     }
   }
 
-  // ── Render ──────────────────────────────────────────────────
   return (
   <div style={{ height: "calc(100vh - 60px)", overflowY: "auto", background: C.bg, padding: 16, paddingBottom: 120, fontFamily: "var(--font-sans)", boxSizing: "border-box" }}>
       <div style={{ fontSize: 16, fontWeight: 600, color: C.text, marginBottom: 14 }}>
         {myPlace ? myPlace.name : (t.addPlaceTitle || "Добавить заведение")}
       </div>
 
-      {/* Tabs */}
       <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
         {(["add", "offer", "import"] as const).map((id) => (
           <button key={id} onClick={() => setTab(id)}
@@ -337,7 +322,6 @@ export function VendorDashboard() {
         ))}
       </div>
 
-      {/* ── ADD / EDIT ───────────────────────────────────────── */}
       {tab === "add" && (
         <div style={{ background: C.surface, border: "0.5px solid " + C.border2, borderRadius: 14, padding: 14 }}>
 
@@ -380,21 +364,6 @@ export function VendorDashboard() {
             <label style={labelStyle}>{t.tagsLabel}</label>
             <input style={inputStyle} value={tagsRaw} placeholder="wifi, розетки, тихо, кофе"
               onChange={(e) => setTagsRaw(e.target.value)} />
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <div style={fieldWrap}>
-              <label style={labelStyle}>{t.fieldLat}</label>
-              <input style={inputStyle} type="number" value={form.lat ?? ""}
-                placeholder="51.1282"
-                onChange={(e) => set("lat", e.target.value ? Number(e.target.value) : null)} />
-            </div>
-            <div style={fieldWrap}>
-              <label style={labelStyle}>{t.fieldLng}</label>
-              <input style={inputStyle} type="number" value={form.lng ?? ""}
-                placeholder="71.4314"
-                onChange={(e) => set("lng", e.target.value ? Number(e.target.value) : null)} />
-            </div>
           </div>
 
           <div style={fieldWrap}>
@@ -446,7 +415,6 @@ export function VendorDashboard() {
         </div>
       )}
 
-      {/* ── OFFER ────────────────────────────────────────────── */}
       {tab === "offer" && (
         <div style={{ background: C.surface, border: "0.5px solid " + C.border2, borderRadius: 14, padding: 14 }}>
 
@@ -486,7 +454,6 @@ export function VendorDashboard() {
         </div>
       )}
 
-      {/* ── ИМПОРТ ИЗ 2GIS ───────────────────────────────────── */}
       {tab === "import" && (
         <div style={{ background: C.surface, border: "0.5px solid " + C.border2, borderRadius: 14, padding: 14 }}>
 
