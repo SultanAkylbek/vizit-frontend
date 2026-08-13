@@ -12,16 +12,16 @@ export function PlaceDirections({ place }: PlaceDirectionsProps) {
   if (!hasLandmarks && !hasDirections) return null;
 
   return (
-    <div className="mb-8 rounded-xl bg-[#2f2f2f] p-6">
+    <div className="mb-8 rounded-xl bg-[#1a1a1a] border border-white/10 p-6">
       <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
-        <Navigation size={20} />
+        <Navigation size={20} className="text-white/40" />
         Как добраться
       </h2>
       
       {hasLandmarks && (
         <div className="mb-4">
-          <p className="text-white/70 mb-2 flex items-center gap-2">
-            <MapPin size={16} className="text-white/40" />
+          <p className="text-white/60 mb-2 flex items-center gap-2">
+            <MapPin size={16} className="text-white/30" />
             Рядом находится:
           </p>
           <ul className="list-disc list-inside text-white/70 space-y-1 ml-2">
@@ -34,7 +34,7 @@ export function PlaceDirections({ place }: PlaceDirectionsProps) {
 
       {hasDirections && (
         <div>
-          <p className="text-white/70 mb-2">Как пройти:</p>
+          <p className="text-white/60 mb-2">Как пройти:</p>
           <p className="text-white/80 leading-relaxed">{place.how_to_get_there}</p>
         </div>
       )}
