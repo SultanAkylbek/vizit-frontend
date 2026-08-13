@@ -13,12 +13,9 @@ import { PlacePayment } from "../components/place/PlacePayment";
 import { PlaceDirections } from "../components/place/PlaceDirections";
 import { PlaceFAQ } from "../components/place/PlaceFAQ";
 import { PlaceTips } from "../components/place/PlaceTips";
-import { PlaceAdditional } from "../components/place/PlaceAdditional";
 import { PlaceNearby } from "../components/place/PlaceNearby";
 import { PlaceSEO } from "../components/place/PlaceSEO";
 
-// Same backend as api/index.ts. Kept as a local constant (not import.meta.env)
-// because that's how the original slug-lookup fix was wired.
 const API_BASE = "https://vizit-backend-vdt2.onrender.com";
 
 type Status = "loading" | "ok" | "error";
@@ -33,25 +30,71 @@ type PlacePageProps = {
   slug: string;
 };
 
+/** Merge backend place with localStorage generated_content if present */
+function mergeWithLocalPlace(backendPlace: Place): Place {
+  try {
+    const raw = localStorage.getItem("vizit_local_places");
+    if (!raw) return backendPlace;
+    const arr = JSON.parse(raw) as any[];
+    const local = arr.find(
+      (p) => p.slug === backendPlace.slug || p.id === backendPlace.id || p.business_id === backendPlace.id
+    );
+    if (!local) return backendPlace;
+
+    // Merge: local generated_content overrides backend empty fields
+    const merged = { ...backendPlace };
+    if (local.generated_content && typeof local.generated_content === "object") {
+      const gc = local.generated_content as Record<string, unknown>;
+      if (gc.about && !merged.about) merged.about = String(gc.about);
+      if (Array.isArray(gc.usp) && !merged.usp) merged.usp = (gc.usp as string[]).join(" • ");
+      if (Array.isArray(gc.offerings) && (!merged.offerings || merged.offerings.length === 0))
+        merged.offerings = gc.offerings as string[];
+      if (Array.isArray(gc.audience) && (!merged.audience || merged.audience.length === 0))
+        merged.audience = gc.audience as string[];
+      if (Array.isArray(gc.faq) && (!merged.faq || merged.faq.length === 0))
+        merged.faq = gc.faq as { question: string; answer: string }[];
+      if (Array.isArray(gc.tips) && (!merged.tips || merged.tips.length === 0))
+        merged.tips = gc.tips as string[];
+      if (gc.how_to_get_there && !merged.how_to_get_there)
+        merged.how_to_get_there = String(gc.how_to_get_there);
+      if (Array.isArray(gc.nearby_landmarks) && (!merged.nearby_landmarks || merged.nearby_landmarks.length === 0))
+        merged.nearby_landmarks = gc.nearby_landmarks as string[];
+      if (gc.working_hours && !merged.working_hours)
+        merged.working_hours = String(gc.working_hours);
+      if (Array.isArray(gc.payment_methods) && (!merged.payment_methods || merged.payment_methods.length === 0))
+        merged.payment_methods = gc.payment_methods as string[];
+    }
+    // Also merge top-level fields if backend missed them
+    if (local.about && !merged.about) merged.about = local.about;
+    if (local.usp && !merged.usp) merged.usp = local.usp;
+    if (Array.isArray(local.offerings) && (!merged.offerings || merged.offerings.length === 0))
+      merged.offerings = local.offerings;
+    if (Array.isArray(local.audience) && (!merged.audience || merged.audience.length === 0))
+      merged.audience = local.audience;
+    if (Array.isArray(local.faq) && (!merged.faq || merged.faq.length === 0))
+      merged.faq = local.faq;
+    if (Array.isArray(local.tips) && (!merged.tips || merged.tips.length === 0))
+      merged.tips = local.tips;
+    if (local.how_to_get_there && !merged.how_to_get_there)
+      merged.how_to_get_there = local.how_to_get_there;
+    if (Array.isArray(local.nearby_landmarks) && (!merged.nearby_landmarks || merged.nearby_landmarks.length === 0))
+      merged.nearby_landmarks = local.nearby_landmarks;
+
+    return merged;
+  } catch {
+    return backendPlace;
+  }
+}
+
 export default function PlacePage({ slug }: PlacePageProps) {
   const [place, setPlace] = useState<Place | null>(null);
   const [status, setStatus] = useState<Status>("loading");
   const [debug, setDebug] = useState<DebugInfo | null>(null);
   const { pushRecentPlace } = useRecentPlaces();
 
-  // Record a real view once the place has actually loaded — no fake/seed data.
   useEffect(() => {
     if (status === "ok" && place?.slug) {
       pushRecentPlace({ slug: place.slug, name: place.name, district: place.district });
-      
-      // Analytics: page view
-      if (typeof window !== "undefined" && (window as any).gtag) {
-        (window as any).gtag("event", "page_view", {
-          event_category: "engagement",
-          event_label: place.slug,
-          value: 1
-        });
-      }
     }
   }, [status, place, pushRecentPlace]);
 
@@ -68,11 +111,13 @@ export default function PlacePage({ slug }: PlacePageProps) {
         return Promise.reject({ url: primaryUrl, status: res.status });
       })
       .then((data: unknown) => {
-        setPlace(mapBackendPlace(data));
+        const mapped = mapBackendPlace(data);
+        // CRITICAL: merge with localStorage generated_content
+        const merged = mergeWithLocalPlace(mapped);
+        setPlace(merged);
         setStatus("ok");
       })
       .catch((firstErr) => {
-        // Fallback: retry with a trailing slash in case of a routing edge case.
         const fallbackUrl = `${primaryUrl}/`;
         fetch(fallbackUrl)
           .then((res) => {
@@ -80,16 +125,20 @@ export default function PlacePage({ slug }: PlacePageProps) {
             return Promise.reject({ url: fallbackUrl, status: res.status });
           })
           .then((data: unknown) => {
-            setPlace(mapBackendPlace(data));
+            const mapped = mapBackendPlace(data);
+            const merged = mergeWithLocalPlace(mapped);
+            setPlace(merged);
             setStatus("ok");
           })
           .catch((secondErr) => {
-            // Try to find a locally added place (persisted in localStorage) before giving up
+            // Try localStorage fallback
             try {
               const raw = localStorage.getItem("vizit_local_places");
               if (raw) {
                 const arr = JSON.parse(raw) as any[];
-                const found = arr.find((p) => p.slug === cleanSlug || p.id === cleanSlug || p.slug === slug);
+                const found = arr.find(
+                  (p) => p.slug === cleanSlug || p.id === cleanSlug || p.slug === slug
+                );
                 if (found) {
                   setPlace(mapBackendPlace(found));
                   setStatus("ok");
@@ -122,7 +171,7 @@ export default function PlacePage({ slug }: PlacePageProps) {
               Не нашёл заведение «{slug}». Возможно, оно было удалено или ссылка неверна.
             </p>
             {debug && (
-              <pre className="overflow-x-auto rounded-lg border border-white/10 bg-[#2a2a2a] p-3 text-[11px] text-white/40">
+              <pre className="overflow-x-auto rounded-lg border border-white/10 bg-[#1a1a1a] p-3 text-[11px] text-white/40">
                 {debug.urlTried}
               </pre>
             )}
@@ -142,7 +191,6 @@ export default function PlacePage({ slug }: PlacePageProps) {
             <PlaceNearby place={place} />
             <PlaceFAQ place={place} />
             <PlaceTips place={place} />
-            <PlaceAdditional place={place} />
           </div>
         )}
       </div>
