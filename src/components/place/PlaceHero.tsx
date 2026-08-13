@@ -30,6 +30,7 @@ export function PlaceHero({ place }: PlaceHeroProps) {
         <span>{[place.district, place.address].filter(Boolean).join(", ")}</span>
       </div>
 
+      {/* Главная кнопка 2GIS — белая, заметная */}
       {place.two_gis_url && (
         <a
           href={place.two_gis_url}
