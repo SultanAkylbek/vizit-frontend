@@ -194,14 +194,19 @@ export function VendorDashboard() {
     setErrMsg("");
     const tags = tagsRaw.split(",").map((s) => s.trim()).filter(Boolean);
     try {
-      await placesApi.upsertMine({ ...form, tags }, genKey());
+      const result = await placesApi.upsertMine({ ...form, tags }, genKey());
       setStatus("ok");
-      const savedForm = form;
       setForm(EMPTY);
       setTagsRaw("");
       refetch();
-      setTimeout(() => setStatus("idle"), 2500);
-      void runGeoPipeline(savedForm, setGeo);
+      // Redirect to the newly created place page after a short delay
+      setTimeout(() => {
+        if (result.slug) {
+          window.location.href = `/place/${result.slug}`;
+        } else {
+          setStatus("idle");
+        }
+      }, 1200);
     } catch (e) {
       const msg = e instanceof ApiError ? e.message + " (HTTP " + e.status + ")" : "Ошибка сети";
       console.error("Ошибка при добавлении заведения:", e);
@@ -302,7 +307,6 @@ export function VendorDashboard() {
       setGisSavedSlug(gisDraft.slug || res.place_id);
       setGisStep("done");
       refetch();
-      void runGeoPipeline(payload, setGeo);
     } catch (e) {
       const msg = e instanceof ApiError ? `${e.message} (HTTP ${e.status})` : "Ошибка сети при сохранении";
       setGisErr(msg);
@@ -426,8 +430,6 @@ export function VendorDashboard() {
             style={{ width: "100%", padding: "11px", borderRadius: 8, border: "none", background: !canAdd ? C.bg : status === "ok" ? C.green : C.blue, color: !canAdd ? C.hint : "#fff", fontSize: 13, fontWeight: 600, cursor: !canAdd ? "default" : "pointer" }}>
             {status === "loading" ? t.submitting : status === "ok" ? t.added : t.submit}
           </button>
-
-          <GeoBar geo={geo} />
 
         </div>
       )}
@@ -566,7 +568,6 @@ export function VendorDashboard() {
                 {gisStep === "saving" ? t.submitting : t.submit}
               </button>
 
-              <GeoBar geo={geo} />
             </>
           )}
 
@@ -576,9 +577,8 @@ export function VendorDashboard() {
               {gisSavedSlug && (
                 <a href={`/place/${gisSavedSlug}`} style={{ fontSize: 13, color: C.blue }}>Открыть карточку</a>
               )}
-              <GeoBar geo={geo} />
               <button
-                onClick={() => { setGisStep("link"); setGisUrl(""); setGisDraft(null); setGisTagsRaw(""); setGisAddress(""); setGisSavedSlug(null); setGeo(GEO_IDLE); }}
+                onClick={() => { setGisStep("link"); setGisUrl(""); setGisDraft(null); setGisTagsRaw(""); setGisAddress(""); setGisSavedSlug(null); }}
                 style={{ width: "100%", marginTop: 12, padding: "11px", borderRadius: 8, border: "0.5px solid " + C.border2, background: C.surface, color: C.text, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
                 Импортировать ещё
               </button>
