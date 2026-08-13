@@ -176,6 +176,7 @@ export function VendorDashboard() {
   const [tagsRaw, setTagsRaw] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "ok" | "err">("idle");
   const [errMsg, setErrMsg] = useState("");
+  const [warnMsg, setWarnMsg] = useState("");
 
   function set<K extends keyof VendorPlaceInput>(k: K, v: VendorPlaceInput[K]) {
     setForm((f) => ({ ...f, [k]: v }));
@@ -192,6 +193,7 @@ export function VendorDashboard() {
     if (!canAdd) return;
     setStatus("loading");
     setErrMsg("");
+    setWarnMsg("");
     const tags = tagsRaw.split(",").map((s) => s.trim()).filter(Boolean);
     try {
       const result = await placesApi.upsertMine({ ...form, tags }, genKey());
@@ -199,14 +201,18 @@ export function VendorDashboard() {
       setForm(EMPTY);
       setTagsRaw("");
       refetch();
-      // Redirect to the newly created place page after a short delay
+
+      if (result.generated_by === "template") {
+        setWarnMsg("Лендинг создан из шаблона. Для AI-генерации подключите OpenRouter API ключ в .env (бесплатно на openrouter.ai)");
+      }
+
       setTimeout(() => {
         if (result.slug) {
           window.location.href = `/place/${result.slug}`;
         } else {
           setStatus("idle");
         }
-      }, 1200);
+      }, 1500);
     } catch (e) {
       const msg = e instanceof ApiError ? e.message + " (HTTP " + e.status + ")" : "Ошибка сети";
       console.error("Ошибка при добавлении заведения:", e);
@@ -417,6 +423,12 @@ export function VendorDashboard() {
               {t.fieldOutlets}
             </label>
           </div>
+
+          {warnMsg && (
+            <div style={{ color: "#B8860B", background: "rgba(184,134,11,0.08)", border: "0.5px solid #B8860B44", borderRadius: 8, padding: "9px 12px", fontSize: 12, marginBottom: 12 }}>
+              {warnMsg}
+            </div>
+          )}
 
           {status === "err" && (
             <div style={{ color: C.red, background: C.redBg, border: "0.5px solid " + C.red + "44", borderRadius: 8, padding: "9px 12px", fontSize: 12, marginBottom: 12 }}>
