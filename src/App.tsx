@@ -34,11 +34,9 @@ type SearchBarProps = {
   onChange: (value: string) => void;
 };
 
-// ВЫНЕСЛИ ИНПУТ СЮДА — ТЕПЕРЬ ФОКУС ПРИ ВВОДЕ ТЕРЯТЬСЯ НЕ БУДЕТ!
 function SearchBar({ query, onChange }: SearchBarProps) {
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Возвращаем фокус в инпут при вводе
   useEffect(() => {
     if (inputRef.current) {
       inputRef.current.focus();
@@ -209,6 +207,32 @@ export default function App() {
               </button>
             ))}
           </div>
+
+          {/* ═══════════════════════════════════════════════════════ */}
+          {/* SEO TEXT BLOCK — Google & LLMs read this on homepage     */}
+          {/* ═══════════════════════════════════════════════════════ */}
+          <div className="mt-12 max-w-lg text-center">
+            <h2 className="mb-2 text-sm font-medium text-white/60">
+              Гид по заведениям Астаны
+            </h2>
+            <p className="text-xs leading-relaxed text-white/40">
+              VIZIT AI — умный каталог кафе, ресторанов, барбершопов, спортзалов, 
+              СТО и других заведений Астаны. Ищите места по названию, категории, 
+              району или с помощью ИИ-чата. Каждое заведение с подробным описанием, 
+              адресом, часами работы, способами оплаты и ссылкой на 2GIS. 
+              Добавьте свой бизнес и получите GEO-оптимизацию для попадания 
+              в ответы ChatGPT, Google и Perplexity.
+            </p>
+            <div className="mt-3 flex flex-wrap justify-center gap-2">
+              {["кофейни Астаны", "рестораны Есиль", "барбершопы", 
+                "спортзалы левый берег", "СТО Астана", "места для работы"].map((tag) => (
+                <span key={tag} className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] text-white/30">
+                  {tag}
+                </span>
+              ))}
+            </div>
+          </div>
+          {/* ═══════════════════════════════════════════════════════ */}
         </div>
       </Layout>
     );
