@@ -15,7 +15,7 @@ import { PlaceFAQ } from "../components/place/PlaceFAQ";
 import { PlaceTips } from "../components/place/PlaceTips";
 import { PlaceNearby } from "../components/place/PlaceNearby";
 import { PlaceSocials } from "../components/place/PlaceSocials";
-import { PlaceSEO } from "../components/place/PlaceSEO";
+import PlaceSEO from "../components/place/PlaceSEO";
 
 const API_BASE = "https://vizit-backend-vdt2.onrender.com";
 
@@ -118,7 +118,6 @@ function buildSchemaJsonLd(place: Place): string {
     hasMap: place.two_gis_url || undefined,
   };
 
-  // Remove undefined values
   const clean = (obj: any): any => {
     if (Array.isArray(obj)) return obj.map(clean).filter((v) => v !== undefined);
     if (obj && typeof obj === "object") {
