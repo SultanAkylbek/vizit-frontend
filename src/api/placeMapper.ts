@@ -121,8 +121,8 @@ export function mapBackendPlace(raw: unknown): Place {
         asString(item.usp, "Описание пока не добавлено.")))
   );
 
-  const lat = asNumber(item.lat) ?? asNumber(item.latitude");
-  const lng = asNumber(item.lng) ?? asNumber(item.longitude");
+  const lat = asNumber(item.lat) ?? asNumber(item.latitude);
+  const lng = asNumber(item.lng) ?? asNumber(item.longitude);
   const twoGisUrl = asString(item.two_gis_url, asString(item.source_url, ""));
   const id = asString(item.id, slug);
   const tags = asTags(item.tags);
