@@ -67,7 +67,7 @@ function buildJsonLd(place: Place, canonical: string): Record<string, unknown> {
 
   const sameAs: string[] = [];
   if (place.two_gis_url) sameAs.push(place.two_gis_url);
-  if (place.instagram_link) sameAs.push(place.instagram_link);
+  if (place.instagram) sameAs.push(place.instagram);
   if (place.website) sameAs.push(place.website);
 
   const graph: Record<string, unknown>[] = [
@@ -149,11 +149,11 @@ function buildJsonLd(place: Place, canonical: string): Record<string, unknown> {
       "@type": "FAQPage",
       "@id": `${canonical}#faq`,
       mainEntity:
-        place.faq?.length && place.faq[0]?.q
+        place.faq?.length
           ? place.faq.map((f: any) => ({
               "@type": "Question",
-              name: f.q,
-              acceptedAnswer: { "@type": "Answer", text: f.a },
+              name: f.question || f.q || "",
+              acceptedAnswer: { "@type": "Answer", text: f.answer || f.a || "" },
             }))
           : undefined,
     },
@@ -199,7 +199,7 @@ function buildJsonLd(place: Place, canonical: string): Record<string, unknown> {
   };
 }
 
-export default function PlaceSEO({ place }: { place: Place }) {
+function PlaceSEO({ place }: { place: Place }) {
   const canonical = `https://vizit-ai.vercel.app/place/${place.slug}`;
   const title = `${place.name} — ${place.category} в ${place.city} | VIZIT AI`;
   const description = (place.about || place.ambient_description || `${place.category} в ${place.city}`).slice(0, 160);
@@ -258,3 +258,6 @@ export default function PlaceSEO({ place }: { place: Place }) {
 
   return null;
 }
+
+export default PlaceSEO;
+export { PlaceSEO };
