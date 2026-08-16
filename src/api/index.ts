@@ -1,150 +1,193 @@
+// src/api/index.ts
+// Frontend API client — talks to the backend at Render
+
 const API_BASE = "https://vizit-backend-vdt2.onrender.com";
 
-export interface Place {
-  id: string;
-  name: string;
-  slug: string;
-  category: string;
-  district: string;
-  address: string;
-  emoji?: string;
-  ambient_description?: string;
-  tags: string[];
-  is_verified: boolean;
-  tier: string;
-  avg_check_kzt?: number;
-  two_gis_url?: string;
-  lat?: number;
-  lng?: number;
-}
-
-export interface VendorPlaceInput {
-  name: string;
-  category: string;
-  address: string;
-  district: string;
-  ambient_description: string;
-  tags: string[];
-  lat: number | null;
-  lng: number | null;
-  two_gis_url: string;      
-  avg_check_kzt: number | null;
-  has_outlets: boolean;
-  has_wifi: boolean;
-}
-
-export interface SearchResult {
-  matched: boolean;
-  rec: string;
-  place: Place | null;
-  session_id?: string;
-}
-
+// ── Errors ──
 export class ApiError extends Error {
-  status: number;
-  constructor(status: number, message: string) {
+  constructor(
+    message: string,
+    public status?: number,
+    public code?: string
+  ) {
     super(message);
-    this.status = status;
     this.name = "ApiError";
   }
 }
 
-async function req<T>(path: string, options: RequestInit = {}): Promise<T> {
-  // 1. Проверяем твой прямой токен
-  let token = localStorage.getItem("vizit_token");
-
-  // 2. АВТОПОДБОР: выковыриваем JWT из системных хранилищ Supabase
-  if (!token) {
-    try {
-      const keys = Object.keys(localStorage);
-      
-      // Ищем строку сессии Supabase
-      const sbKey = keys.find(key => key.startsWith("sb-") && key.endsWith("-auth-token"));
-      
-      if (sbKey) {
-        const sbData = localStorage.getItem(sbKey);
-        if (sbData) {
-          const parsed = JSON.parse(sbData);
-          token = parsed?.access_token || parsed?.current_session?.access_token || null;
-        }
-      }
-      
-      // Ищем в альтернативных ключах
-      if (!token) {
-        const fallbackKey = keys.find(key => key.includes("supabase.auth.token") || key.includes("supabase_session"));
-        if (fallbackKey) {
-          const fbData = localStorage.getItem(fallbackKey);
-          if (fbData) {
-            const parsed = JSON.parse(fbData);
-            token = parsed?.current_session?.access_token || parsed?.access_token || null;
-          }
-        }
-      }
-    } catch (_) {}
-  }
-
-  const headers = new Headers();
-
-  if (options.headers) {
-    const inputHeaders = new Headers(options.headers);
-    inputHeaders.forEach((value, key) => {
-      headers.set(key, value);
-    });
-  }
-
-  if (!headers.has("Content-Type")) {
-    headers.set("Content-Type", "application/json");
-  }
-
-  if (token) {
-    headers.set("Authorization", "Bearer " + token.trim());
-  }
-
-  const fetchOptions: RequestInit = {
-    ...options,
-    mode: "cors",
-    headers: headers
-  };
-
-  const res = await fetch(API_BASE + path, fetchOptions);
-
-  if (!res.ok) {
-    let message = "Server error";
-    try {
-      const body = await res.json();
-      message = body.detail || body.message || message;
-    } catch (_) {}
-    throw new ApiError(res.status, message);
-  }
-
-  if (res.status === 204) return undefined as T;
-  return res.json() as Promise<T>;
+// ── Types ──
+export interface Place {
+  id: string;
+  slug: string;
+  business_id?: string;
+  name: string;
+  category: string;
+  niche?: string;
+  city?: string;
+  district?: string | null;
+  address: string;
+  emoji?: string | null;
+  ambient_description?: string | null;
+  tags?: string[];
+  is_verified?: boolean;
+  tier?: string;
+  avg_check_kzt?: number;
+  two_gis_url?: string;
+  lat?: number | null;
+  lng?: number | null;
+  phone?: string | null;
+  website?: string | null;
+  instagram?: string | null;
+  tiktok?: string | null;
+  working_hours?: string | null;
+  rating?: number | null;
+  review_count?: number | null;
+  payment_methods?: string[];
+  usp?: string | string[] | null;
+  features?: string[];
+  target_audience?: string | null;
+  about?: string | null;
+  offerings?: string[];
+  audience?: string[];
+  faq?: { question: string; answer: string }[] | { q: string; a: string }[];
+  tips?: string[];
+  how_to_get_there?: string | null;
+  nearby_landmarks?: string[];
+  local_guides?: string[];
+  comparison_sections?: { title: string; content: string }[];
+  page_sections?: { title: string; content: string }[];
+  ai_context?: string;
+  business_knowledge?: string;
+  entity_json?: Record<string, unknown>;
+  semantic_relations?: string[];
+  search_intents?: (string | { query: string; intent_type: string })[];
+  source_snippets?: string[];
+  recommendation_snippets?: string[];
+  conversational_answers?: { question: string; answer: string }[];
+  breadcrumb?: { name: string; url?: string }[];
+  canonical_url?: string;
+  entity_summary?: string | null;
+  summary?: string | null;
+  atmosphere?: string | null;
+  amenities?: string[] | null;
+  practical_info?: Record<string, unknown> | null;
+  semantic_terms?: string[] | null;
+  generated_content?: Record<string, unknown> | null;
+  photos?: string[];
+  has_wifi?: boolean;
+  has_outlets?: boolean;
 }
 
-export const placesApi = {
-  list: (): Promise<Place[]> => req("/api/v1/places"),
+export interface SearchResult {
+  places?: Place[];
+  place?: Place;
+  session_id?: string | null;
+  rec?: string;
+}
 
-  search: (query: string, lang: string, session_id: string | null): Promise<SearchResult> =>
-    req("/api/v1/search", {
-      method: "POST",
-      body: JSON.stringify({ query, lang, session_id }),
-    }),
+// ── HTTP helper ──
+async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
+  const url = `${API_BASE}${path}`;
+  const res = await fetch(url, {
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    ...options,
+  });
 
-  upsertMine: (data: VendorPlaceInput, idempotencyKey?: string): Promise<{ status: string; place_id: string }> => {
-    const extraHeaders: Record<string, string> = {};
-    if (idempotencyKey) {
-      extraHeaders["X-Idempotency-Key"] = idempotencyKey;
+  if (!res.ok) {
+    let detail = `HTTP ${res.status}`;
+    try {
+      const errBody = await res.json();
+      detail = errBody.detail || errBody.message || JSON.stringify(errBody);
+    } catch {
+      detail = await res.text().catch(() => `HTTP ${res.status}`);
     }
-    return req("/api/v1/vendor/place", {   
+    throw new ApiError(detail, res.status);
+  }
+
+  // Handle empty body (204)
+  if (res.status === 204) return undefined as T;
+  return res.json();
+}
+
+// ── places API ──
+export const placesApi = {
+  /** Load all places (backend first, fallback to localStorage). */
+  async list(): Promise<Place[]> {
+    try {
+      const data = await apiFetch<Place[]>("/api/v1/places?limit=1000");
+      return data;
+    } catch {
+      const raw = localStorage.getItem("vizit_local_places");
+      return raw ? (JSON.parse(raw) as Place[]) : [];
+    }
+  },
+
+  /** Search places via backend AI + local fallback. */
+  async search(
+    query: string,
+    lang: string,
+    sessionId: string | null,
+    localPlaces: Place[]
+  ): Promise<SearchResult> {
+    try {
+      const data = await apiFetch<SearchResult>("/api/v1/places/search", {
+        method: "POST",
+        body: JSON.stringify({ query, lang, session_id: sessionId }),
+      });
+      return data;
+    } catch {
+      // Client-side fallback when backend is down
+      const q = query.trim().toLowerCase();
+      const filtered = localPlaces.filter((p) => {
+        const hay = [
+          p.name,
+          p.category,
+          p.district,
+          p.address,
+          p.ambient_description ?? "",
+          ...(p.tags ?? []),
+        ]
+          .join(" ")
+          .toLowerCase();
+        return hay.includes(q);
+      });
+      return { places: filtered, rec: "" };
+    }
+  },
+
+  /** Create or update a vendor's place. */
+  async upsertMine(payload: Record<string, unknown>, key: string): Promise<Place> {
+    return apiFetch<Place>("/api/v1/places", {
       method: "POST",
-      body: JSON.stringify(data),
-      headers: extraHeaders,
+      body: JSON.stringify({ ...payload, key }),
     });
   },
 };
 
+// ── GEO / AI generation API ──
+export const geoApi = {
+  async generate(payload: Record<string, unknown>) {
+    return apiFetch<{ generated_content?: Record<string, unknown> }>("/api/v1/geo/generate", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+};
+
+// ── 2GIS import API ──
+export const importApi = {
+  async from2gis(url: string, business_id?: string, lang = "ru") {
+    return apiFetch<Place>("/api/v1/geo/import-2gis", {
+      method: "POST",
+      body: JSON.stringify({ url, business_id, lang }),
+    });
+  },
+};
+
+// ── Offers API (placeholder) ──
 export const offersApi = {
-  listMine: (): Promise<any[]> => req("/api/v1/vendor/offers"),
-  create: (data: any): Promise<any> => req("/api/v1/vendor/offers", { method: "POST", body: JSON.stringify(data) }),
-  delete: (id: string): Promise<any> => req(`/api/v1/vendor/offers/${id}`, { method: "DELETE" })
+  // Add methods here when needed
 };

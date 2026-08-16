@@ -13,6 +13,9 @@ export function usePlaces() {
   const refetch = useCallback(() => {
     setLoading(true);
     setError(null);
+    // placesApi.list() already reads the local fallback storage itself
+    // (no real "list all places" endpoint exists on the backend yet) —
+    // no need to merge/dedupe against localStorage again here.
     placesApi
       .list()
       .then((data: Place[]) => {

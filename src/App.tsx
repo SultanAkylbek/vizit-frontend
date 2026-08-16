@@ -1,8 +1,10 @@
-import { useMemo, useState } from "react";
+import './vizit-effects.css';
+import { useMemo, useState, useRef, useEffect } from "react";
 import { ArrowUp, Search, MapPin } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Layout } from "./Layout";
 import { usePlaces } from "./hooks/usePlaces";
+import { placesApi } from "./api/index";
 import type { Place } from "./api/index";
 import { CATEGORIES, SUGGESTIONS } from "./constants";
 
@@ -22,28 +24,44 @@ function matchesQuery(place: Place, query: string): boolean {
   return haystack.includes(q);
 }
 
+function applyCategoryFilter(places: Place[], category: string | null): Place[] {
+  if (!category) return places;
+  return places.filter((place) => place.category === category);
+}
+
 type SearchBarProps = {
   query: string;
   onChange: (value: string) => void;
 };
 
-// Shared between the Welcome and Results screens so the input's behaviour
-// (state, disabled logic) lives in exactly one place.
 function SearchBar({ query, onChange }: SearchBarProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, []);
+
   return (
-    <div
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        inputRef.current?.blur();
+      }}
       className="flex w-full items-center gap-2 rounded-3xl border border-white/10 bg-[#2f2f2f]
                  px-4 py-3 shadow-sm transition-colors focus-within:border-white/25 focus-within:bg-[#333333]"
     >
       <Search size={16} className="shrink-0 text-white/40" />
       <input
+        ref={inputRef}
         value={query}
         onChange={(e) => onChange(e.target.value)}
         placeholder="Спросите про место в Астане..."
         className="flex-1 bg-transparent text-sm text-[#ececec] placeholder:text-white/40 focus:outline-none"
       />
       <button
-        onClick={(e) => (e.currentTarget as HTMLButtonElement).blur()}
+        type="submit"
         disabled={!query.trim()}
         aria-label="Найти"
         className={`
@@ -58,39 +76,97 @@ function SearchBar({ query, onChange }: SearchBarProps) {
       >
         <ArrowUp size={16} strokeWidth={2.5} />
       </button>
-    </div>
+    </form>
   );
 }
 
 export default function App() {
   const { places, loading, error } = usePlaces();
   const [query, setQuery] = useState("");
+  const [remotePlaces, setRemotePlaces] = useState<Place[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const sessionIdRef = useRef<string | null>(null);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const activeCategory = searchParams.get("category");
 
-  const filteredPlaces = useMemo(() => {
-    return places.filter(
-      (p) =>
-        matchesQuery(p, query) &&
-        (!activeCategory || p.category === activeCategory)
+  useEffect(() => {
+    const trimmed = query.trim();
+
+    if (!trimmed) {
+      setRemotePlaces([]);
+      setSearchLoading(false);
+      setSearchError(null);
+      return;
+    }
+
+    let cancelled = false;
+    setSearchLoading(true);
+    setSearchError(null);
+
+    const timeout = window.setTimeout(() => {
+      placesApi
+        .search(trimmed, "ru", sessionIdRef.current, places)
+        .then((result) => {
+          if (cancelled) return;
+          const ranked = result.places?.length
+            ? result.places
+            : result.place
+              ? [result.place]
+              : [];
+          setRemotePlaces(ranked);
+          sessionIdRef.current = result.session_id ?? sessionIdRef.current;
+        })
+        .catch((err: unknown) => {
+          if (cancelled) return;
+          setRemotePlaces([]);
+          setSearchError(
+            err instanceof Error
+              ? err.message
+              : "Не удалось выполнить поиск. Показываю локальные совпадения."
+          );
+        })
+        .finally(() => {
+          if (!cancelled) setSearchLoading(false);
+        });
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [query, places]);
+
+  const localFilteredPlaces = useMemo(() => {
+    return applyCategoryFilter(
+      (places ?? []).filter((place) => matchesQuery(place, query)),
+      activeCategory
     );
   }, [places, query, activeCategory]);
+
+  const filteredPlaces = useMemo(() => {
+    if (!query.trim()) return localFilteredPlaces;
+    const ranked = remotePlaces.length > 0 ? remotePlaces : localFilteredPlaces;
+    return applyCategoryFilter(ranked, activeCategory);
+  }, [query, remotePlaces, localFilteredPlaces, activeCategory]);
 
   const activeCategoryLabel = CATEGORIES.find(
     (c) => c.value === activeCategory
   )?.label;
 
-  // Screen switch: Welcome vs Results. Purely a rendering decision —
-  // none of the state/fetching logic above changes based on it.
   const isSearching = query.trim().length > 0 || !!activeCategory;
+  const isResultsLoading = loading || searchLoading;
+  const visibleError = searchError || error;
 
   const handleClear = () => {
     setQuery("");
+    setRemotePlaces([]);
+    setSearchError(null);
     navigate("/");
   };
 
-  // ── Screen 1: Welcome — nothing typed, no category selected ──
+  // ── Screen 1: Welcome ──
   if (!isSearching) {
     return (
       <Layout>
@@ -103,8 +179,23 @@ export default function App() {
             <SearchBar query={query} onChange={setQuery} />
           </div>
 
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <button
+              onClick={() => navigate('/chat')}
+              className="rounded-2xl border border-white/10 bg-[#2a2a2a] px-4 py-3 text-sm text-white/80 hover:bg-white/5 hover:border-white/20 transition-colors"
+            >
+              Бесплатный чат
+            </button>
+            <button
+              onClick={() => navigate('/vendor')}
+              className="rounded-2xl border border-white/10 bg-[#2a2a2a] px-4 py-3 text-sm text-white/80 hover:bg-white/5 hover:border-white/20 transition-colors"
+            >
+              Добавить место
+            </button>
+          </div>
+
           <div className="mt-6 grid w-full grid-cols-1 gap-3 sm:grid-cols-2">
-            {SUGGESTIONS.map((s) => (
+            {(SUGGESTIONS ?? []).map((s) => (
               <button
                 key={s.label}
                 onClick={() => setQuery(s.query)}
@@ -116,12 +207,38 @@ export default function App() {
               </button>
             ))}
           </div>
+
+          {/* ═══════════════════════════════════════════════════════ */}
+          {/* SEO TEXT BLOCK — Google & LLMs read this on homepage     */}
+          {/* ═══════════════════════════════════════════════════════ */}
+          <div className="mt-12 max-w-lg text-center">
+            <h2 className="mb-2 text-sm font-medium text-white/60">
+              Гид по заведениям Астаны
+            </h2>
+            <p className="text-xs leading-relaxed text-white/40">
+              VIZIT AI — умный каталог кафе, ресторанов, барбершопов, спортзалов, 
+              СТО и других заведений Астаны. Ищите места по названию, категории, 
+              району или с помощью ИИ-чата. Каждое заведение с подробным описанием, 
+              адресом, часами работы, способами оплаты и ссылкой на 2GIS. 
+              Добавьте свой бизнес и получите GEO-оптимизацию для попадания 
+              в ответы ChatGPT, Google и Perplexity.
+            </p>
+            <div className="mt-3 flex flex-wrap justify-center gap-2">
+              {["кофейни Астаны", "рестораны Есиль", "барбершопы", 
+                "спортзалы левый берег", "СТО Астана", "места для работы"].map((tag) => (
+                <span key={tag} className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] text-white/30">
+                  {tag}
+                </span>
+              ))}
+            </div>
+          </div>
+          {/* ═══════════════════════════════════════════════════════ */}
         </div>
       </Layout>
     );
   }
 
-  // ── Screen 2: Results — input sits at the top, list renders below ──
+  // ── Screen 2: Results ──
   return (
     <Layout>
       <div className="mx-auto flex min-h-full max-w-2xl flex-col px-4 py-8">
@@ -141,28 +258,34 @@ export default function App() {
           </button>
         </div>
 
+        {searchError && remotePlaces.length === 0 && localFilteredPlaces.length > 0 && (
+          <p className="mt-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-xs text-white/45">
+            Backend-поиск временно недоступен. Показываю локальные совпадения.
+          </p>
+        )}
+
         <div className="mt-3 divide-y divide-white/10 overflow-hidden rounded-2xl border border-white/10">
-          {loading && (
+          {isResultsLoading && (
             <p className="px-4 py-6 text-center text-sm text-white/40">
               Загружаю заведения...
             </p>
           )}
 
-          {error && (
+          {!isResultsLoading && visibleError && filteredPlaces.length === 0 && (
             <p className="px-4 py-6 text-center text-sm text-white/60">
-              {error}
+              {visibleError}
             </p>
           )}
 
-          {!loading && !error && filteredPlaces.length === 0 && (
+          {!isResultsLoading && !visibleError && filteredPlaces.length === 0 && (
             <p className="px-4 py-6 text-center text-sm text-white/40">
               Ничего не найдено. Попробуйте другой запрос.
             </p>
           )}
 
-          {!loading &&
-            !error &&
-            filteredPlaces.map((place) => (
+          {!isResultsLoading &&
+            filteredPlaces.length > 0 &&
+            (filteredPlaces ?? []).map((place) => (
               <button
                 key={place.id}
                 onClick={() => navigate(`/place/${place.slug}`)}
